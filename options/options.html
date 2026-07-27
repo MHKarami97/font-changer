@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تنظیمات پیشرفته - Font Changer</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <main class="options-container">
+    <h1>تنظیمات پیشرفته Font Changer</h1>
+
+    <section class="card">
+      <h2>سایت‌های سفارشی</h2>
+      <p>لیست دامنه‌هایی که در حالت «فقط سایت‌های سفارشی» فونت روی آن‌ها اعمال می‌شود.</p>
+      <div class="input-row">
+        <input type="text" id="siteInput" placeholder="مثلاً: digikala.com" />
+        <button id="addBtn">افزودن</button>
+      </div>
+      <table id="sitesTable">
+        <thead><tr><th>دامنه</th><th>حذف</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>بازنشانی تنظیمات</h2>
+      <p>تمام تنظیمات (فونت انتخابی، دامنه اعمال، سایت‌های سفارشی) به حالت پیش‌فرض برمی‌گردد.</p>
+      <button id="resetBtn" class="danger">بازنشانی به حالت پیش‌فرض</button>
+    </section>
+
+    <footer>
+      <a href="../about/about.html">درباره سازنده افزونه</a>
+    </footer>
+  </main>
+  <script src="../lib/settings-repository.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

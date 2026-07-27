@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "Font Changer for Google Fonts",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Easily change the font of any website using Google Fonts (e.g. Vazirmatn) on all sites, RTL-only sites, or a specific site.",
+    "description": "Extension description"
+  }
+}

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>درباره ما - Font Changer</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Vazirmatn", "Tahoma", sans-serif;
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      color: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      max-width: 520px;
+      width: 100%;
+      background: #ffffff10;
+      border: 1px solid #ffffff22;
+      backdrop-filter: blur(6px);
+      border-radius: 16px;
+      padding: 32px;
+    }
+    .avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #2563eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 16px;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .role { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
+    p { line-height: 1.9; font-size: 14px; color: #e2e8f0; }
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+    .tag {
+      background: #2563eb33;
+      border: 1px solid #2563eb66;
+      color: #93c5fd;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+    a.site-link {
+      display: inline-block;
+      margin-top: 16px;
+      background: #2563eb;
+      color: white;
+      text-decoration: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    a.site-link:hover { background: #1d4ed8; }
+    @media (max-width: 480px) {
+      .card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="avatar">MH</div>
+    <h1>محمد حسین کرمی</h1>
+    <div class="role">توسعه‌دهنده نرم‌افزار</div>
+    <p>
+      این افزونه توسط <strong>محمد حسین کرمی</strong>،  ساخته شده است.
+      هدف از ساخت این افزونه، تجربه‌ی بهتر مطالعه و مرور وب‌سایت‌ها با فونت‌های
+      دلخواه، به‌خصوص فونت‌های فارسی مانند «وزیرمتن»، بوده است.
+    </p>
+    <div class="tags">
+      <span class="tag">Font</span>
+      <span class="tag">Vazirmatn</span>
+      <span class="tag">فونت</span>
+      <span class="tag">وزیرمتن</span>
+    </div>
+    <p>برای مشاهده سایر پروژه‌ها و مقالات فنی از وب‌سایت شخصی من دیدن کنید.</p>
+    <a class="site-link" href="https://mhkarami97.ir" target="_blank" rel="noopener noreferrer">
+       mhkarami97.ir
+    </a>
+  </div>
+</body>
+</html>

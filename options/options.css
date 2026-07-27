@@ -1,0 +1,49 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Vazirmatn", "Tahoma", sans-serif;
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.options-container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+h1 { font-size: 20px; margin-bottom: 20px; }
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.card h2 { font-size: 16px; margin-top: 0; }
+.card p { color: #64748b; font-size: 13px; }
+.input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.input-row input {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-family: inherit;
+}
+.input-row button, .danger {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+.input-row button { background: #2563eb; color: white; }
+.danger { background: #ef4444; color: white; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; }
+td button { border: none; background: transparent; color: #ef4444; cursor: pointer; }
+footer { text-align: center; margin-top: 20px; }
+footer a { color: #2563eb; text-decoration: none; font-size: 13px; }
+
+@media (max-width: 480px) {
+  .input-row { flex-direction: column; }
+}

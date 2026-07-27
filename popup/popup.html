@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Font Changer</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <h1>تعویض فونت</h1>
+      <label class="switch" title="فعال‌سازی سراسری">
+        <input type="checkbox" id="globalToggle" />
+        <span class="slider"></span>
+      </label>
+    </header>
+
+    <section class="section">
+      <label for="fontSelect" class="field-label">فونت گوگل</label>
+      <select id="fontSelect"></select>
+    </section>
+
+    <section class="section">
+      <label for="weightSelect" class="field-label">وزن فونت</label>
+      <select id="weightSelect">
+        <option value="300">سبک (300)</option>
+        <option value="400" selected>معمولی (400)</option>
+        <option value="500">متوسط (500)</option>
+        <option value="700">ضخیم (700)</option>
+      </select>
+    </section>
+
+    <section class="section">
+      <label class="field-label">دامنه اعمال فونت</label>
+      <div class="radio-group">
+        <label><input type="radio" name="scope" value="all" /> همه سایت‌ها</label>
+        <label><input type="radio" name="scope" value="rtl" /> فقط سایت‌های راست‌چین (RTL)</label>
+        <label><input type="radio" name="scope" value="custom" /> فقط سایت‌های سفارشی</label>
+        <label><input type="radio" name="scope" value="off" /> غیرفعال</label>
+      </div>
+    </section>
+
+    <section class="section custom-sites-section" id="customSitesSection">
+      <label for="customSiteInput" class="field-label">افزودن دامنه سفارشی</label>
+      <div class="input-row">
+        <input type="text" id="customSiteInput" placeholder="example.com" />
+        <button id="addSiteBtn">افزودن</button>
+      </div>
+      <ul id="customSitesList" class="site-list"></ul>
+    </section>
+
+    <section class="section current-site-section">
+      <div class="current-site-row">
+        <span id="currentSiteLabel">example.com</span>
+        <label class="switch" title="فعال‌سازی فقط برای این سایت">
+          <input type="checkbox" id="currentSiteToggle" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <p class="hint">می‌توانید مستقل از تنظیمات بالا، فقط برای همین سایت فونت را روشن/خاموش کنید.</p>
+    </section>
+
+    <footer class="popup-footer">
+      <a href="../options/options.html" target="_blank">تنظیمات پیشرفته</a>
+      <a href="../about/about.html" target="_blank">درباره ما</a>
+    </footer>
+  </div>
+  <script src="../lib/settings-repository.js"></script>
+  <script src="fonts-catalog.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
