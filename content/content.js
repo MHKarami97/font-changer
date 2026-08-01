@@ -1,35 +1,38 @@
 /**
  * content.js
  * ------------------------------------------------------------------
- * نقطه ورود Content Script. مسئولیت‌ها بر اساس SRP بین چند کلاس تقسیم شده‌اند:
+ * نقطه ورود Content Script.
  *
  *   - GoogleFontLoader   : بارگذاری فونت از Google Fonts
- *   - IconFontDetector   : تشخیص و محافظت از المان‌هایی که از فونت آیکون
- *                          (Material Icons, Material Symbols, Google Symbols,
- *                          Font Awesome, ...) استفاده می‌کنند، حتی اگر داخل
- *                          Shadow DOM (مثل Google Maps) باشند
+ *   - IconFontDetector   : تشخیص المان‌های آیکونی، هم روی خود المان و هم
+ *                          روی Pseudo-element های ::before/::after (که محل
+ *                          واقعی رندر آیکون در بسیاری از سیستم‌ها مثل
+ *                          Google Symbols/Material Symbols است)، در سراسر
+ *                          Light DOM و Shadow DOM
  *   - FontApplier        : اعمال فونت روی <html> با CSS Injection
- *   - DirectionApplier   : اجباری‌کردن جهت صفحه به RTL (ویژگی کاملاً مستقل)
- *   - FontChangerController / DirectionController : Orchestrator هرکدام
- *                          (Facade Pattern)
+ *   - DirectionApplier   : اجباری‌کردن جهت صفحه به RTL (ویژگی مستقل)
+ *   - FontChangerController / DirectionController : Orchestrator (Facade)
  *
- * نکته فنی مهم درباره Shadow DOM:
- * بسیاری از اپلیکیشن‌های مدرن گوگل (از جمله Google Maps) از Web Components
- * با Shadow DOM استفاده می‌کنند. طبق مشخصات استاندارد Shadow DOM، شیوه‌نامه‌های
- * (stylesheet) تزریق‌شده در سند اصلی (Light DOM) به داخل Shadow Tree نفوذ
- * نمی‌کنند، اما ویژگی‌های ارثی مثل font-family از طریق مرز Shadow به پایین
- * به ارث می‌رسند (Inheritance Across Shadow Boundary). به همین دلیل حتی
- * بدون نفوذ مستقیم CSS، آیکون‌های داخل Shadow DOM هم تحت تاثیر فونت جدید
- * قرار می‌گیرند. برای رفع کامل این مشکل، باید:
- *   ۱. به‌صورت بازگشتی به داخل Shadow Root های "open" نفوذ کرد (Shadow Root
- *      های "closed" به دلایل امنیتی از جاوااسکریپت صفحه/افزونه غیرقابل
- *      دسترسی هستند - این یک محدودیت پلتفرمی مرورگر است، نه باگ افزونه).
- *   ۲. به‌جای تکیه بر یک قانون CSS سراسری با `:not()`، فونت اصلیِ محاسبه‌شده
- *      (Computed Style) هر المان آیکونی را قبل از تغییر، به‌صورت
- *      inline style با `!important` روی خود همان المان قفل کرد. طبق قوانین
- *      Cascade در CSS، یک inline style با `!important` همیشه بر یک قانون
- *      `!important` در stylesheet خارجی اولویت دارد، پس این روش مستقل از
- *      Light/Shadow DOM بودن المان، تضمین‌شده کار می‌کند.
+ * === چرا نسخه‌های قبلی آیکون Google Maps را درست نکردند؟ ===
+ *
+ * ریشه واقعی مشکل «حساسیت به حروف بزرگ/کوچک» نبود (آن از قبل با
+ * toLowerCase() رفع شده بود). ریشه مشکل این بود که بسیاری از سیستم‌های
+ * آیکون گوگل (از جمله Google Symbols در Google Maps) گلیف آیکون را با
+ * `content` روی Pseudo-element (`::before` یا `::after`) رندر می‌کنند،
+ * نه مستقیماً با متن داخل خود المان.
+ *
+ * جاوااسکریپت به‌هیچ‌وجه نمی‌تواند `element.style` را برای یک Pseudo-element
+ * تنظیم کند (چون ::before/::after بخشی از DOM واقعی نیستند و Node مستقلی
+ * محسوب نمی‌شوند)؛ بنابراین قفل inline که روی خودِ المان اعمال می‌شد، هیچ
+ * تاثیری روی فونت گلیف داخل ::before نداشت و آیکون همچنان مربعی می‌ماند.
+ *
+ * === راه‌حل ===
+ * تنها روش معتبر برای override کردن فونت یک Pseudo-element، تزریق یک
+ * قانون CSS واقعی با selector مخصوص آن Pseudo-element است (نه inline
+ * style). پس این‌جا برای هر المانی که آیکونش (خودش یا ::before/::after آن)
+ * از فونت آیکونی استفاده می‌کند، یک شناسه یکتا (data-fc-icon-id) تخصیص
+ * داده و یک قانون CSS اختصاصی برای آن id + آن pseudo-element، با
+ * specificity بالاتر از قانون سراسری فونت، در همان <style> تزریق می‌شود.
  */
 
 class GoogleFontLoader {
@@ -55,17 +58,9 @@ class GoogleFontLoader {
 
 /**
  * ShadowDomWalker
- * ------------------------------------------------------------------
- * مسئولیت واحد: پیمایش بازگشتی درخت DOM به‌همراه تمام Shadow Root های
- * قابل‌دسترسی (open) داخل آن. این کلاس به‌طور مستقل قابل تست و بازاستفاده
- * است (هم توسط IconFontDetector و هم در آینده برای هر قابلیت دیگری که
- * نیاز به عبور از مرز Shadow DOM دارد).
+ * پیمایش بازگشتی درخت DOM به‌همراه تمام Shadow Root های "open" داخل آن.
  */
 class ShadowDomWalker {
-  /**
-   * @param {ParentNode} root
-   * @param {(element: Element) => void} visit
-   */
   static walk(root, visit) {
     if (!root) return;
     const elements = root.querySelectorAll ? root.querySelectorAll("*") : [];
@@ -77,11 +72,6 @@ class ShadowDomWalker {
     });
   }
 
-  /**
-   * جمع‌آوری تمام Shadow Root های قابل‌دسترسی (برای اتصال MutationObserver).
-   * @param {ParentNode} root
-   * @returns {ShadowRoot[]}
-   */
   static collectShadowRoots(root) {
     const roots = [];
     ShadowDomWalker.walk(root, (el) => {
@@ -94,12 +84,12 @@ class ShadowDomWalker {
 /**
  * IconFontDetector
  * ------------------------------------------------------------------
- * تشخیص المان‌های آیکونی (بر اساس font-family محاسبه‌شده) در سراسر
- * Light DOM و Shadow DOM، و قفل‌کردن فونت اصلی آن‌ها با inline !important
- * تا با تغییر فونت سراسری صفحه دست‌نخورده باقی بمانند.
+ * تشخیص المان‌های آیکونی (هم روی خود المان، هم روی ::before/::after آن)
+ * در سراسر Light DOM و Shadow DOM، و تولید قوانین CSS اختصاصی برای
+ * قفل‌کردن فونت اصلی آن‌ها.
  */
 class IconFontDetector {
-  static #MARK_ATTRIBUTE = "data-fc-icon";
+  static #ID_ATTRIBUTE = "data-fc-icon-id";
 
   static #ICON_FONT_KEYWORDS = [
     "material icons",
@@ -120,22 +110,24 @@ class IconFontDetector {
 
   #observers = [];
   #debounceTimer = null;
+  #nextId = 1;
+  #onRulesChanged;
 
-  /**
-   * پیمایش کامل (Light DOM + Shadow DOM) و قفل‌کردن فونت اصلی آیکون‌ها.
-   * باید پیش از تزریق قانون سراسری فونت اجرا شود.
-   * @param {ParentNode} root
-   */
-  scan(root = document.body) {
-    if (!root) return;
-    ShadowDomWalker.walk(root, (el) => this.#lockIfIconFont(el));
+  /** @param {(rules: string[]) => void} onRulesChanged هر بار قانون جدید تولید شود صدا زده می‌شود */
+  constructor(onRulesChanged) {
+    this.#onRulesChanged = onRulesChanged;
+    this.rules = [];
   }
 
-  /**
-   * فعال‌سازی MutationObserver روی سند اصلی و تمام Shadow Root های موجود،
-   * به‌همراه debounce برای جلوگیری از افت Performance روی سایت‌های پرتغییر
-   * مثل Google Maps.
-   */
+  scan(root = document.body) {
+    if (!root) return;
+    let hasNewRule = false;
+    ShadowDomWalker.walk(root, (el) => {
+      if (this.#processElement(el)) hasNewRule = true;
+    });
+    if (hasNewRule) this.#onRulesChanged?.(this.rules);
+  }
+
   observe(root = document.documentElement) {
     this.disconnect();
 
@@ -158,37 +150,81 @@ class IconFontDetector {
     }
   }
 
+  reset() {
+    this.disconnect();
+    this.rules = [];
+    this.#nextId = 1;
+  }
+
   #scheduleRescan(root) {
     if (this.#debounceTimer) clearTimeout(this.#debounceTimer);
     this.#debounceTimer = setTimeout(() => {
       this.scan(root);
-      // شادو روت‌های تازه اضافه‌شده را هم زیر نظر می‌گیریم
       this.observe(root);
     }, 200);
   }
 
-  #lockIfIconFont(element) {
-    if (!(element instanceof Element)) return;
-    if (element.hasAttribute(IconFontDetector.#MARK_ATTRIBUTE)) return;
+  /**
+   * @returns {boolean} true اگر قانون جدیدی برای این المان اضافه شد
+   */
+  #processElement(element) {
+    if (!(element instanceof Element)) return false;
 
-    const computedStyle = element.ownerDocument?.defaultView?.getComputedStyle(element);
-    const computedFamily = computedStyle?.fontFamily?.toLowerCase() || "";
-    const isIconFont = IconFontDetector.#ICON_FONT_KEYWORDS.some((keyword) =>
-      computedFamily.includes(keyword)
-    );
+    const win = element.ownerDocument?.defaultView;
+    if (!win) return false;
 
-    if (isIconFont) {
-      // قفل‌کردن فونت اصلی به‌صورت inline !important روی خود المان.
-      // این روش مستقل از Light/Shadow DOM بودن، و مستقل از specificity
-      // قانون سراسری فونت، همیشه اولویت دارد.
-      element.style.setProperty("font-family", computedStyle.fontFamily, "important");
-      element.setAttribute(IconFontDetector.#MARK_ATTRIBUTE, "true");
+    let addedRule = false;
+
+    // 1) بررسی خود المان
+    const ownFamily = win.getComputedStyle(element).fontFamily?.toLowerCase() || "";
+    if (this.#isIconFont(ownFamily)) {
+      const id = this.#ensureId(element);
+      const fullFamily = win.getComputedStyle(element).fontFamily;
+      this.rules.push(`[${IconFontDetector.#ID_ATTRIBUTE}="${id}"] { font-family: ${fullFamily} !important; }`);
+      addedRule = true;
     }
+
+    // 2) بررسی ::before و ::after (محل رایج رندر گلیف آیکون در بسیاری از
+    // سیستم‌های آیکون مثل Google Symbols)
+    for (const pseudo of ["::before", "::after"]) {
+      const pseudoStyle = win.getComputedStyle(element, pseudo);
+      const content = pseudoStyle.content;
+      // اگر content واقعاً چیزی رندر می‌کند (نه "none")، پس این pseudo فعال است
+      if (!content || content === "none" || content === '""') continue;
+
+      const pseudoFamily = pseudoStyle.fontFamily?.toLowerCase() || "";
+      if (this.#isIconFont(pseudoFamily)) {
+        const id = this.#ensureId(element);
+        const fullFamily = pseudoStyle.fontFamily;
+        this.rules.push(
+          `[${IconFontDetector.#ID_ATTRIBUTE}="${id}"]${pseudo} { font-family: ${fullFamily} !important; }`
+        );
+        addedRule = true;
+      }
+    }
+
+    return addedRule;
+  }
+
+  #isIconFont(lowerCaseFamily) {
+    return IconFontDetector.#ICON_FONT_KEYWORDS.some((keyword) =>
+      lowerCaseFamily.includes(keyword)
+    );
+  }
+
+  #ensureId(element) {
+    let id = element.getAttribute(IconFontDetector.#ID_ATTRIBUTE);
+    if (!id) {
+      id = String(this.#nextId++);
+      element.setAttribute(IconFontDetector.#ID_ATTRIBUTE, id);
+    }
+    return id;
   }
 }
 
 class FontApplier {
   static #STYLE_ID = "__font-changer-style__";
+  static #ICON_STYLE_ID = "__font-changer-icon-protection-style__";
 
   apply(fontFamily) {
     let styleTag = document.getElementById(FontApplier.#STYLE_ID);
@@ -197,9 +233,6 @@ class FontApplier {
       styleTag.id = FontApplier.#STYLE_ID;
       (document.head || document.documentElement).appendChild(styleTag);
     }
-    // المان‌های آیکونی از قبل توسط IconFontDetector با inline !important
-    // قفل شده‌اند، پس این قانون سراسری روی آن‌ها بی‌اثر می‌ماند و نیازی به
-    // انتخابگر :not() پیچیده نیست (که در Shadow DOM هم کار نمی‌کرد).
     styleTag.textContent = `
       html, body, * {
         font-family: "${fontFamily}", "Vazirmatn", "Tahoma", sans-serif !important;
@@ -207,17 +240,30 @@ class FontApplier {
     `;
   }
 
+  /**
+   * قوانین محافظتی آیکون را در یک <style> جداگانه، بعد از قانون سراسری
+   * فونت، تزریق می‌کند تا specificity بالاتر (attribute selector) آن‌ها
+   * قطعاً برنده شود.
+   * @param {string[]} rules
+   */
+  applyIconProtection(rules) {
+    let styleTag = document.getElementById(FontApplier.#ICON_STYLE_ID);
+    if (!styleTag) {
+      styleTag = document.createElement("style");
+      styleTag.id = FontApplier.#ICON_STYLE_ID;
+      (document.head || document.documentElement).appendChild(styleTag);
+    }
+    styleTag.textContent = rules.join("\n");
+  }
+
   remove() {
     const styleTag = document.getElementById(FontApplier.#STYLE_ID);
     if (styleTag) styleTag.remove();
+    const iconStyleTag = document.getElementById(FontApplier.#ICON_STYLE_ID);
+    if (iconStyleTag) iconStyleTag.remove();
   }
 }
 
-/**
- * DirectionApplier
- * ------------------------------------------------------------------
- * قابلیت مستقل "اجبار جهت راست‌به‌چپ (RTL)".
- */
 class DirectionApplier {
   static #STYLE_ID = "__font-changer-rtl-style__";
   static #ORIGINAL_DIR_ATTR = "data-fc-original-dir";
@@ -270,11 +316,13 @@ class FontChangerController {
   #fontApplier;
   #iconDetector;
 
-  constructor(settingsRepository, fontLoader, fontApplier, iconDetector) {
+  constructor(settingsRepository, fontLoader, fontApplier) {
     this.#settingsRepository = settingsRepository;
     this.#fontLoader = fontLoader;
     this.#fontApplier = fontApplier;
-    this.#iconDetector = iconDetector;
+    this.#iconDetector = new IconFontDetector((rules) => {
+      this.#fontApplier.applyIconProtection(rules);
+    });
   }
 
   async run() {
@@ -294,14 +342,23 @@ class FontChangerController {
     }
 
     if (shouldApply) {
-      // اسکن آیکون‌ها (Light + Shadow DOM) باید پیش از اعمال فونت انجام
-      // شود تا Computed Style اصلی (قبل از override) خوانده شود.
+      // ترتیب اجرا حیاتی است: ابتدا باید آیکون‌ها را قبل از اعمال فونت
+      // جدید اسکن کنیم، چون تشخیص بر اساس Computed Style *اصلیِ* صفحه
+      // (فونت آیکونی که خود سایت تعریف کرده) انجام می‌شود. اگر فونت جدید
+      // زودتر اعمال شود، Computed Style همان فونت جدید (مثلاً Vazirmatn)
+      // را برمی‌گرداند و هیچ‌کدام از کلیدواژه‌های آیکون تشخیص داده نمی‌شود.
+      this.#iconDetector.reset();
       this.#iconDetector.scan(document.body);
-      this.#iconDetector.observe(document.documentElement);
+
       this.#fontLoader.load(settings.selectedFont, settings.fontWeight);
       this.#fontApplier.apply(settings.selectedFont);
+
+      // بعد از اعمال فونت، رصد تغییرات DOM را فعال می‌کنیم تا المان‌های
+      // آیکونیِ جدید (که بعداً توسط اپلیکیشن‌های SPA مثل Google Maps
+      // رندر می‌شوند) هم با فونت اصلی‌شان محافظت شوند.
+      this.#iconDetector.observe(document.documentElement);
     } else {
-      this.#iconDetector.disconnect();
+      this.#iconDetector.reset();
       this.#fontLoader.remove();
       this.#fontApplier.remove();
     }
@@ -345,8 +402,7 @@ class DirectionController {
   const fontController = new FontChangerController(
     settingsRepository,
     new GoogleFontLoader(),
-    new FontApplier(),
-    new IconFontDetector()
+    new FontApplier()
   );
 
   const directionController = new DirectionController(
