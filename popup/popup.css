@@ -210,3 +210,9 @@ input:checked + .slider::before {
     max-width: 420px;
   }
 }
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 4px 0;
+}

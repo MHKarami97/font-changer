@@ -11,7 +11,7 @@
     <h1>تنظیمات پیشرفته Font Changer</h1>
 
     <section class="card">
-      <h2>سایت‌های سفارشی</h2>
+      <h2>سایت‌های سفارشی (فونت)</h2>
       <p>لیست دامنه‌هایی که در حالت «فقط سایت‌های سفارشی» فونت روی آن‌ها اعمال می‌شود.</p>
       <div class="input-row">
         <input type="text" id="siteInput" placeholder="مثلاً: digikala.com" />
@@ -24,8 +24,21 @@
     </section>
 
     <section class="card">
+      <h2>سایت‌های سفارشی (اجبار RTL)</h2>
+      <p>لیست دامنه‌هایی که در حالت «فقط سایت‌های سفارشی» جهت آن‌ها به RTL تغییر می‌کند. این تنظیم کاملاً مستقل از تنظیمات فونت است.</p>
+      <div class="input-row">
+        <input type="text" id="rtlSiteInput" placeholder="مثلاً: example.com" />
+        <button id="rtlAddBtn">افزودن</button>
+      </div>
+      <table id="rtlSitesTable">
+        <thead><tr><th>دامنه</th><th>حذف</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="card">
       <h2>بازنشانی تنظیمات</h2>
-      <p>تمام تنظیمات (فونت انتخابی، دامنه اعمال، سایت‌های سفارشی) به حالت پیش‌فرض برمی‌گردد.</p>
+      <p>تمام تنظیمات (فونت انتخابی، دامنه اعمال، سایت‌های سفارشی فونت و RTL) به حالت پیش‌فرض برمی‌گردد.</p>
       <button id="resetBtn" class="danger">بازنشانی به حالت پیش‌فرض</button>
     </section>
 

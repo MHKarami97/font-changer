@@ -41,7 +41,7 @@
     </section>
 
     <section class="section custom-sites-section" id="customSitesSection">
-      <label for="customSiteInput" class="field-label">افزودن دامنه سفارشی</label>
+      <label for="customSiteInput" class="field-label">افزودن دامنه سفارشی (فونت)</label>
       <div class="input-row">
         <input type="text" id="customSiteInput" placeholder="example.com" />
         <button id="addSiteBtn">افزودن</button>
@@ -52,12 +52,48 @@
     <section class="section current-site-section">
       <div class="current-site-row">
         <span id="currentSiteLabel">example.com</span>
-        <label class="switch" title="فعال‌سازی فقط برای این سایت">
+        <label class="switch" title="فعال‌سازی فونت فقط برای این سایت">
           <input type="checkbox" id="currentSiteToggle" />
           <span class="slider"></span>
         </label>
       </div>
       <p class="hint">می‌توانید مستقل از تنظیمات بالا، فقط برای همین سایت فونت را روشن/خاموش کنید.</p>
+    </section>
+
+    <hr class="divider" />
+
+    <header class="popup-header">
+      <h1>اجبار جهت راست‌به‌چپ (RTL)</h1>
+    </header>
+    <p class="hint">این قابلیت کاملاً مستقل از تنظیمات فونت است و فقط جهت نمایش صفحه را تغییر می‌دهد.</p>
+
+    <section class="section">
+      <label class="field-label">دامنه اعمال RTL</label>
+      <div class="radio-group">
+        <label><input type="radio" name="rtlScope" value="all" /> همه سایت‌ها</label>
+        <label><input type="radio" name="rtlScope" value="custom" /> فقط سایت‌های سفارشی</label>
+        <label><input type="radio" name="rtlScope" value="off" /> غیرفعال</label>
+      </div>
+    </section>
+
+    <section class="section custom-sites-section" id="rtlCustomSitesSection">
+      <label for="rtlCustomSiteInput" class="field-label">افزودن دامنه سفارشی (RTL)</label>
+      <div class="input-row">
+        <input type="text" id="rtlCustomSiteInput" placeholder="example.com" />
+        <button id="rtlAddSiteBtn">افزودن</button>
+      </div>
+      <ul id="rtlCustomSitesList" class="site-list"></ul>
+    </section>
+
+    <section class="section current-site-section">
+      <div class="current-site-row">
+        <span id="rtlCurrentSiteLabel">example.com</span>
+        <label class="switch" title="فعال‌سازی RTL فقط برای این سایت">
+          <input type="checkbox" id="rtlCurrentSiteToggle" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <p class="hint">می‌توانید مستقل از تنظیمات بالا، فقط برای همین سایت جهت RTL را روشن/خاموش کنید.</p>
     </section>
 
     <footer class="popup-footer">

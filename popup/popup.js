@@ -1,11 +1,9 @@
 /**
  * popup.js
  * ------------------------------------------------------------------
- * الگوی MVC ساده:
- *   - Model  : SettingsRepository (لایه lib)
- *   - View   : DOM عناصر popup.html
- *   - Controller: کلاس PopupController که رویدادها را به تغییرات Model
- *                 و View متصل می‌کند.
+ * الگوی MVC ساده، به‌همراه یک کلاس کمکی SiteListEditor (Composition) که
+ * منطق تکراری «افزودن/حذف دامنه به یک لیست» را هم برای فونت و هم برای
+ * RTL Forcer بازاستفاده می‌کند (DRY - Don't Repeat Yourself).
  */
 
 class PopupView {
@@ -14,12 +12,14 @@ class PopupView {
     this.fontSelect = document.getElementById("fontSelect");
     this.weightSelect = document.getElementById("weightSelect");
     this.customSitesSection = document.getElementById("customSitesSection");
-    this.customSiteInput = document.getElementById("customSiteInput");
-    this.addSiteBtn = document.getElementById("addSiteBtn");
-    this.customSitesList = document.getElementById("customSitesList");
     this.currentSiteLabel = document.getElementById("currentSiteLabel");
     this.currentSiteToggle = document.getElementById("currentSiteToggle");
     this.scopeRadios = Array.from(document.querySelectorAll('input[name="scope"]'));
+
+    this.rtlCustomSitesSection = document.getElementById("rtlCustomSitesSection");
+    this.rtlCurrentSiteLabel = document.getElementById("rtlCurrentSiteLabel");
+    this.rtlCurrentSiteToggle = document.getElementById("rtlCurrentSiteToggle");
+    this.rtlScopeRadios = Array.from(document.querySelectorAll('input[name="rtlScope"]'));
   }
 
   populateFontOptions(fonts, selectedFont) {
@@ -46,25 +46,94 @@ class PopupView {
     this.customSitesSection.style.display = scope === "custom" ? "flex" : "none";
   }
 
-  renderCustomSites(sites, onRemove) {
-    this.customSitesList.innerHTML = "";
+  setRtlScope(scope) {
+    this.rtlScopeRadios.forEach((radio) => {
+      radio.checked = radio.value === scope;
+    });
+    this.rtlCustomSitesSection.style.display = scope === "custom" ? "flex" : "none";
+  }
+
+  setCurrentSiteLabel(hostname) {
+    this.currentSiteLabel.textContent = hostname;
+    this.rtlCurrentSiteLabel.textContent = hostname;
+  }
+
+  setCurrentSiteToggle(isEnabled) {
+    this.currentSiteToggle.checked = Boolean(isEnabled);
+  }
+
+  setRtlCurrentSiteToggle(isEnabled) {
+    this.rtlCurrentSiteToggle.checked = Boolean(isEnabled);
+  }
+}
+
+/**
+ * SiteListEditor
+ * ------------------------------------------------------------------
+ * مسئولیت واحد: مدیریت افزودن/حذف/رندر یک لیست دامنه در storage.
+ * با تزریق نام کلید تنظیمات (settingsKey) و المان‌های DOM، هم برای
+ * customSites (فونت) و هم rtlCustomSites (RTL) بازاستفاده می‌شود.
+ */
+class SiteListEditor {
+  #repository;
+  #settingsKey;
+  #inputEl;
+  #addBtnEl;
+  #listEl;
+  #onChange;
+
+  constructor(repository, settingsKey, { inputEl, addBtnEl, listEl }, onChange) {
+    this.#repository = repository;
+    this.#settingsKey = settingsKey;
+    this.#inputEl = inputEl;
+    this.#addBtnEl = addBtnEl;
+    this.#listEl = listEl;
+    this.#onChange = onChange;
+  }
+
+  async render() {
+    const settings = await this.#repository.getSettings();
+    const sites = settings[this.#settingsKey] || [];
+    this.#listEl.innerHTML = "";
     sites.forEach((site) => {
       const li = document.createElement("li");
       li.innerHTML = `<span>${site}</span>`;
       const removeBtn = document.createElement("button");
       removeBtn.textContent = "✕";
-      removeBtn.addEventListener("click", () => onRemove(site));
+      removeBtn.addEventListener("click", () => this.#remove(site));
       li.appendChild(removeBtn);
-      this.customSitesList.appendChild(li);
+      this.#listEl.appendChild(li);
     });
   }
 
-  setCurrentSiteLabel(hostname) {
-    this.currentSiteLabel.textContent = hostname;
+  bindEvents() {
+    this.#addBtnEl.addEventListener("click", () => this.#add());
+    this.#inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") this.#add();
+    });
   }
 
-  setCurrentSiteToggle(isEnabled) {
-    this.currentSiteToggle.checked = Boolean(isEnabled);
+  async #add() {
+    const value = this.#inputEl.value.trim().toLowerCase();
+    if (!value) return;
+    const settings = await this.#repository.getSettings();
+    const list = settings[this.#settingsKey] || [];
+    if (list.includes(value)) return;
+
+    await this.#repository.updateSettings({ [this.#settingsKey]: [...list, value] });
+    this.#inputEl.value = "";
+    await this.render();
+    this.#onChange?.();
+  }
+
+  async #remove(site) {
+    const settings = await this.#repository.getSettings();
+    const list = settings[this.#settingsKey] || [];
+    await this.#repository.updateSettings({
+      [this.#settingsKey]: list.filter((s) => s !== site)
+    });
+    await this.render();
+    this.#onChange?.();
   }
 }
 
@@ -72,6 +141,8 @@ class PopupController {
   #repository;
   #view;
   #activeTab;
+  #fontSiteEditor;
+  #rtlSiteEditor;
 
   constructor(repository, view) {
     this.#repository = repository;
@@ -86,14 +157,39 @@ class PopupController {
     this.#view.setGlobalToggle(settings.isGloballyEnabled);
     this.#view.setWeight(settings.fontWeight);
     this.#view.setScope(settings.scope);
-    this.#view.renderCustomSites(settings.customSites, (site) =>
-      this.#removeCustomSite(site)
+    this.#view.setRtlScope(settings.rtlScope);
+
+    this.#fontSiteEditor = new SiteListEditor(
+      this.#repository,
+      "customSites",
+      {
+        inputEl: document.getElementById("customSiteInput"),
+        addBtnEl: document.getElementById("addSiteBtn"),
+        listEl: document.getElementById("customSitesList")
+      },
+      () => this.#broadcastUpdate()
     );
+    this.#rtlSiteEditor = new SiteListEditor(
+      this.#repository,
+      "rtlCustomSites",
+      {
+        inputEl: document.getElementById("rtlCustomSiteInput"),
+        addBtnEl: document.getElementById("rtlAddSiteBtn"),
+        listEl: document.getElementById("rtlCustomSitesList")
+      },
+      () => this.#broadcastUpdate()
+    );
+
+    await this.#fontSiteEditor.render();
+    await this.#rtlSiteEditor.render();
+    this.#fontSiteEditor.bindEvents();
+    this.#rtlSiteEditor.bindEvents();
 
     if (this.#activeTab?.url) {
       const hostname = this.#safeHostname(this.#activeTab.url);
       this.#view.setCurrentSiteLabel(hostname || "این صفحه پشتیبانی نمی‌شود");
       this.#view.setCurrentSiteToggle(settings.perSiteOverrides[hostname]);
+      this.#view.setRtlCurrentSiteToggle(settings.rtlPerSiteOverrides[hostname]);
     }
 
     this.#bindEvents();
@@ -116,7 +212,7 @@ class PopupController {
     try {
       await chrome.tabs.sendMessage(tabId, message);
     } catch {
-      // تب ممکن است صفحه‌ای باشد که content script در آن اجرا نمی‌شود (مثل chrome://)
+      // تب ممکن است صفحه‌ای باشد که content script در آن اجرا نمی‌شود (مثل edge://)
     }
   }
 
@@ -145,39 +241,30 @@ class PopupController {
       });
     });
 
-    this.#view.addSiteBtn.addEventListener("click", () => this.#addCustomSite());
-    this.#view.customSiteInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") this.#addCustomSite();
+    this.#view.rtlScopeRadios.forEach((radio) => {
+      radio.addEventListener("change", async (e) => {
+        if (!e.target.checked) return;
+        await this.#repository.updateSettings({ rtlScope: e.target.value });
+        this.#view.setRtlScope(e.target.value);
+        this.#broadcastUpdate();
+      });
     });
 
     this.#view.currentSiteToggle.addEventListener("change", async (e) => {
       if (!this.#activeTab?.id) return;
       await this.#notifyContentScript(this.#activeTab.id, {
         type: "TOGGLE_CURRENT_SITE",
-        payload: { isEnabled: e.target.checked }
+        payload: { feature: "font", isEnabled: e.target.checked }
       });
     });
-  }
 
-  async #addCustomSite() {
-    const value = this.#view.customSiteInput.value.trim().toLowerCase();
-    if (!value) return;
-    const settings = await this.#repository.getSettings();
-    if (settings.customSites.includes(value)) return;
-
-    const updated = [...settings.customSites, value];
-    await this.#repository.updateSettings({ customSites: updated });
-    this.#view.renderCustomSites(updated, (site) => this.#removeCustomSite(site));
-    this.#view.customSiteInput.value = "";
-    this.#broadcastUpdate();
-  }
-
-  async #removeCustomSite(site) {
-    const settings = await this.#repository.getSettings();
-    const updated = settings.customSites.filter((s) => s !== site);
-    await this.#repository.updateSettings({ customSites: updated });
-    this.#view.renderCustomSites(updated, (s) => this.#removeCustomSite(s));
-    this.#broadcastUpdate();
+    this.#view.rtlCurrentSiteToggle.addEventListener("change", async (e) => {
+      if (!this.#activeTab?.id) return;
+      await this.#notifyContentScript(this.#activeTab.id, {
+        type: "TOGGLE_CURRENT_SITE",
+        payload: { feature: "rtl", isEnabled: e.target.checked }
+      });
+    });
   }
 
   async #broadcastUpdate() {
