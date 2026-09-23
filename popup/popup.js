@@ -1,9 +1,9 @@
 /**
  * popup.js
  * ------------------------------------------------------------------
- * الگوی MVC ساده، به‌همراه یک کلاس کمکی SiteListEditor (Composition) که
- * منطق تکراری «افزودن/حذف دامنه به یک لیست» را هم برای فونت و هم برای
- * RTL Forcer بازاستفاده می‌کند (DRY - Don't Repeat Yourself).
+ * MVC: PopupView (DOM) + PopupController (منطق) + SiteListEditor (Composition).
+ * DRY - Don't Repeat Yourself: یک کلاس SiteListEditor برای هر سه لیست
+ * (customSites / rtlCustomSites / excludedPaths) استفاده می‌شود.
  */
 
 class PopupView {
@@ -32,7 +32,7 @@ class PopupView {
     this.fontSelect.innerHTML = fonts
       .map(
         (font) =>
-          `<option value="${font}" ${font === selectedFont ? "selected" : ""}>${font}</option>`,
+          `<option value="${font}" ${selectedFont === font ? "selected" : ""}>${font}</option>`,
       )
       .join("");
   }
@@ -78,153 +78,168 @@ class PopupView {
 /**
  * SiteListEditor
  * ------------------------------------------------------------------
- * مسئولیت واحد: مدیریت افزودن/حذف/رندر یک لیست دامنه در storage.
- * با تزریق نام کلید تنظیمات (settingsKey) و المان‌های DOM، هم برای
- * customSites (فونت) و هم rtlCustomSites (RTL) بازاستفاده می‌شود.
+ * یک لیست عمومی (اضافه/حذف آیتم) که با storage همگام می‌شود.
+ * settingsKey تعیین می‌کند کدام آرایه در تنظیمات ویرایش شود
+ * (customSites / rtlCustomSites / excludedPaths).
+ *
+ * @param {SettingsRepository} repository
+ * @param {string} settingsKey
+ * @param {{inputEl: HTMLInputElement, addBtnEl: HTMLButtonElement, listEl: HTMLUListElement}} elements
+ * @param {Function} [onChange]
  */
 class SiteListEditor {
-  #repository;
-  #settingsKey;
-  #inputEl;
-  #addBtnEl;
-  #listEl;
-  #onChange;
-
-  constructor(
-    repository,
-    settingsKey,
-    { inputEl, addBtnEl, listEl },
-    onChange,
-  ) {
-    this.#repository = repository;
-    this.#settingsKey = settingsKey;
-    this.#inputEl = inputEl;
-    this.#addBtnEl = addBtnEl;
-    this.#listEl = listEl;
-    this.#onChange = onChange;
+  constructor(repository, settingsKey, elements, onChange) {
+    this.repository = repository;
+    this.settingsKey = settingsKey;
+    this.inputEl = elements.inputEl;
+    this.addBtnEl = elements.addBtnEl;
+    this.listEl = elements.listEl;
+    this.onChange = onChange;
   }
 
   async render() {
-    const settings = await this.#repository.getSettings();
-    const sites = settings[this.#settingsKey] || [];
-    this.#listEl.innerHTML = "";
+    var settings = await this.repository.getSettings();
+    var sites = settings[this.settingsKey];
+
+    this.listEl.innerHTML = "";
     sites.forEach((site) => {
-      const li = document.createElement("li");
+      var li = document.createElement("li");
       li.innerHTML = `<span>${site}</span>`;
-      const removeBtn = document.createElement("button");
-      removeBtn.textContent = "✕";
-      removeBtn.addEventListener("click", () => this.#remove(site));
+
+      var removeBtn = document.createElement("button");
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", () => this.remove(site));
+
       li.appendChild(removeBtn);
-      this.#listEl.appendChild(li);
+      this.listEl.appendChild(li);
     });
   }
 
   bindEvents() {
-    this.#addBtnEl.addEventListener("click", () => this.#add());
-    this.#inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") this.#add();
+    this.addBtnEl.addEventListener("click", () => this.add());
+    this.inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        this.add();
+      }
     });
   }
 
-  async #add() {
-    const value = this.#inputEl.value.trim().toLowerCase();
-    if (!value) return;
-    const settings = await this.#repository.getSettings();
-    const list = settings[this.#settingsKey] || [];
-    if (list.includes(value)) return;
+  async add() {
+    var value = this.inputEl.value.trim().toLowerCase();
+    if (!value) {
+      return;
+    }
 
-    await this.#repository.updateSettings({
-      [this.#settingsKey]: [...list, value],
+    var settings = await this.repository.getSettings();
+    var list = settings[this.settingsKey];
+    if (list.includes(value)) {
+      return;
+    }
+
+    await this.repository.updateSettings({
+      [this.settingsKey]: [...list, value],
     });
-    this.#inputEl.value = "";
+
+    this.inputEl.value = "";
     await this.render();
-    this.#onChange?.();
+    this.onChange?.();
   }
 
-  async #remove(site) {
-    const settings = await this.#repository.getSettings();
-    const list = settings[this.#settingsKey] || [];
-    await this.#repository.updateSettings({
-      [this.#settingsKey]: list.filter((s) => s !== site),
+  async remove(site) {
+    var settings = await this.repository.getSettings();
+    var list = settings[this.settingsKey];
+
+    await this.repository.updateSettings({
+      [this.settingsKey]: list.filter((s) => s !== site),
     });
+
     await this.render();
-    this.#onChange?.();
+    this.onChange?.();
   }
 }
 
 class PopupController {
-  #repository;
-  #view;
-  #activeTab;
-  #fontSiteEditor;
-  #rtlSiteEditor;
-
   constructor(repository, view) {
-    this.#repository = repository;
-    this.#view = view;
+    this.repository = repository;
+    this.view = view;
+    this.activeTab = null;
+    this.fontSiteEditor = null;
+    this.rtlSiteEditor = null;
+    this.excludedPathsEditor = null;
   }
 
   async init() {
-    this.#activeTab = await this.#getActiveTab();
-    const settings = await this.#repository.getSettings();
+    this.activeTab = await this.getActiveTab();
+    var settings = await this.repository.getSettings();
 
-    this.#view.populateFontOptions(FontsCatalog, settings.selectedFont);
-    this.#view.setGlobalToggle(settings.isGloballyEnabled);
-    this.#view.setWeight(settings.fontWeight);
-    this.#view.setScope(settings.scope);
-    this.#view.setRtlScope(settings.rtlScope);
+    this.view.populateFontOptions(FontsCatalog, settings.selectedFont);
+    this.view.setGlobalToggle(settings.isGloballyEnabled);
+    this.view.setWeight(settings.fontWeight);
+    this.view.setScope(settings.scope);
+    this.view.setRtlScope(settings.rtlScope);
 
-    this.#fontSiteEditor = new SiteListEditor(
-      this.#repository,
+    this.fontSiteEditor = new SiteListEditor(
+      this.repository,
       "customSites",
       {
         inputEl: document.getElementById("customSiteInput"),
         addBtnEl: document.getElementById("addSiteBtn"),
         listEl: document.getElementById("customSitesList"),
       },
-      () => this.#broadcastUpdate(),
+      this.broadcastUpdate,
     );
 
-    this.#rtlSiteEditor = new SiteListEditor(
-      this.#repository,
+    this.rtlSiteEditor = new SiteListEditor(
+      this.repository,
       "rtlCustomSites",
       {
         inputEl: document.getElementById("rtlCustomSiteInput"),
         addBtnEl: document.getElementById("rtlAddSiteBtn"),
         listEl: document.getElementById("rtlCustomSitesList"),
       },
-      () => this.#broadcastUpdate(),
-    );
-
-    this.excludedPathsEditor = new SiteListEditor(
-      this.repository,
-      "excludedPaths",
-      document.getElementById("excludedPathInput"),
-      document.getElementById("excludedPathAddBtn"),
-      document.getElementById("excludedPathsList"),
       this.broadcastUpdate,
     );
-    await this.excludedPathsEditor.render();
-    this.excludedPathsEditor.bindEvents();
 
-    await this.#fontSiteEditor.render();
-    await this.#rtlSiteEditor.render();
-    this.#fontSiteEditor.bindEvents();
-    this.#rtlSiteEditor.bindEvents();
+    // مسیرهای مستثنا (مثل google.com/maps) - اگر این عناصر در popup.html وجود نداشته باشند،
+    // این بخش نادیده گرفته می‌شود بدون اینکه بقیه‌ی پاپ‌آپ را خراب کند.
+    var excludedInput = document.getElementById("excludedPathInput");
+    var excludedAddBtn = document.getElementById("excludedPathAddBtn");
+    var excludedList = document.getElementById("excludedPathsList");
 
-    if (this.#activeTab?.url) {
-      const hostname = this.#safeHostname(this.#activeTab.url);
-      this.#view.setCurrentSiteLabel(hostname || "این صفحه پشتیبانی نمی‌شود");
-      this.#view.setCurrentSiteToggle(settings.perSiteOverrides[hostname]);
-      this.#view.setRtlCurrentSiteToggle(
-        settings.rtlPerSiteOverrides[hostname],
+    if (excludedInput && excludedAddBtn && excludedList) {
+      this.excludedPathsEditor = new SiteListEditor(
+        this.repository,
+        "excludedPaths",
+        {
+          inputEl: excludedInput,
+          addBtnEl: excludedAddBtn,
+          listEl: excludedList,
+        },
+        this.broadcastUpdate,
       );
     }
 
-    this.#bindEvents();
+    await this.fontSiteEditor.render();
+    await this.rtlSiteEditor.render();
+    this.fontSiteEditor.bindEvents();
+    this.rtlSiteEditor.bindEvents();
+
+    if (this.excludedPathsEditor) {
+      await this.excludedPathsEditor.render();
+      this.excludedPathsEditor.bindEvents();
+    }
+
+    if (this.activeTab?.url) {
+      var hostname = this.safeHostname(this.activeTab.url);
+      this.view.setCurrentSiteLabel(hostname);
+      this.view.setCurrentSiteToggle(settings.perSiteOverrides[hostname]);
+      this.view.setRtlCurrentSiteToggle(settings.rtlPerSiteOverrides[hostname]);
+    }
+
+    this.bindEvents();
   }
 
-  #safeHostname(url) {
+  safeHostname(url) {
     try {
       return new URL(url).hostname;
     } catch {
@@ -232,86 +247,84 @@ class PopupController {
     }
   }
 
-  async #getActiveTab() {
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
+  async getActiveTab() {
+    var [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     return tab;
   }
 
-  async #notifyContentScript(tabId, message) {
+  async notifyContentScript(tabId, message) {
     try {
       await chrome.tabs.sendMessage(tabId, message);
     } catch {
-      // تب ممکن است صفحه‌ای باشد که content script در آن اجرا نمی‌شود (مثل edge://)
+      // content script در این تب موجود نیست (مثلا chrome://) - قابل چشم‌پوشی
     }
   }
 
-  #bindEvents() {
-    this.#view.globalToggle.addEventListener("change", async (e) => {
-      await this.#repository.updateSettings({
+  bindEvents() {
+    this.view.globalToggle.addEventListener("change", async (e) => {
+      await this.repository.updateSettings({
         isGloballyEnabled: e.target.checked,
       });
-      this.#broadcastUpdate();
+      this.broadcastUpdate();
     });
 
-    this.#view.fontSelect.addEventListener("change", async (e) => {
-      await this.#repository.updateSettings({ selectedFont: e.target.value });
-      this.#broadcastUpdate();
+    this.view.fontSelect.addEventListener("change", async (e) => {
+      await this.repository.updateSettings({ selectedFont: e.target.value });
+      this.broadcastUpdate();
     });
 
-    this.#view.weightSelect.addEventListener("change", async (e) => {
-      await this.#repository.updateSettings({ fontWeight: e.target.value });
-      this.#broadcastUpdate();
+    this.view.weightSelect.addEventListener("change", async (e) => {
+      await this.repository.updateSettings({ fontWeight: e.target.value });
+      this.broadcastUpdate();
     });
 
-    this.#view.scopeRadios.forEach((radio) => {
+    this.view.scopeRadios.forEach((radio) => {
       radio.addEventListener("change", async (e) => {
         if (!e.target.checked) return;
-        await this.#repository.updateSettings({ scope: e.target.value });
-        this.#view.setScope(e.target.value);
-        this.#broadcastUpdate();
+        await this.repository.updateSettings({ scope: e.target.value });
+        this.view.setScope(e.target.value);
+        this.broadcastUpdate();
       });
     });
 
-    this.#view.rtlScopeRadios.forEach((radio) => {
+    this.view.rtlScopeRadios.forEach((radio) => {
       radio.addEventListener("change", async (e) => {
         if (!e.target.checked) return;
-        await this.#repository.updateSettings({ rtlScope: e.target.value });
-        this.#view.setRtlScope(e.target.value);
-        this.#broadcastUpdate();
+        await this.repository.updateSettings({ rtlScope: e.target.value });
+        this.view.setRtlScope(e.target.value);
+        this.broadcastUpdate();
       });
     });
 
-    this.#view.currentSiteToggle.addEventListener("change", async (e) => {
-      if (!this.#activeTab?.id) return;
-      await this.#notifyContentScript(this.#activeTab.id, {
+    this.view.currentSiteToggle.addEventListener("change", async (e) => {
+      if (!this.activeTab?.id) return;
+      await this.notifyContentScript(this.activeTab.id, {
         type: "TOGGLE_CURRENT_SITE",
         payload: { feature: "font", isEnabled: e.target.checked },
       });
     });
 
-    this.#view.rtlCurrentSiteToggle.addEventListener("change", async (e) => {
-      if (!this.#activeTab?.id) return;
-      await this.#notifyContentScript(this.#activeTab.id, {
+    this.view.rtlCurrentSiteToggle.addEventListener("change", async (e) => {
+      if (!this.activeTab?.id) return;
+      await this.notifyContentScript(this.activeTab.id, {
         type: "TOGGLE_CURRENT_SITE",
         payload: { feature: "rtl", isEnabled: e.target.checked },
       });
     });
   }
 
-  async #broadcastUpdate() {
-    const tabs = await chrome.tabs.query({});
+  broadcastUpdate = async () => {
+    var tabs = await chrome.tabs.query({});
     tabs.forEach((tab) => {
-      if (tab.id)
-        this.#notifyContentScript(tab.id, { type: "SETTINGS_UPDATED" });
+      if (tab.id) {
+        this.notifyContentScript(tab.id, { type: "SETTINGS_UPDATED" });
+      }
     });
-  }
+  };
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const controller = new PopupController(
+  var controller = new PopupController(
     new SettingsRepository(),
     new PopupView(),
   );
