@@ -14,19 +14,25 @@ class PopupView {
     this.customSitesSection = document.getElementById("customSitesSection");
     this.currentSiteLabel = document.getElementById("currentSiteLabel");
     this.currentSiteToggle = document.getElementById("currentSiteToggle");
-    this.scopeRadios = Array.from(document.querySelectorAll('input[name="scope"]'));
+    this.scopeRadios = Array.from(
+      document.querySelectorAll('input[name="scope"]'),
+    );
 
-    this.rtlCustomSitesSection = document.getElementById("rtlCustomSitesSection");
+    this.rtlCustomSitesSection = document.getElementById(
+      "rtlCustomSitesSection",
+    );
     this.rtlCurrentSiteLabel = document.getElementById("rtlCurrentSiteLabel");
     this.rtlCurrentSiteToggle = document.getElementById("rtlCurrentSiteToggle");
-    this.rtlScopeRadios = Array.from(document.querySelectorAll('input[name="rtlScope"]'));
+    this.rtlScopeRadios = Array.from(
+      document.querySelectorAll('input[name="rtlScope"]'),
+    );
   }
 
   populateFontOptions(fonts, selectedFont) {
     this.fontSelect.innerHTML = fonts
       .map(
         (font) =>
-          `<option value="${font}" ${font === selectedFont ? "selected" : ""}>${font}</option>`
+          `<option value="${font}" ${font === selectedFont ? "selected" : ""}>${font}</option>`,
       )
       .join("");
   }
@@ -43,14 +49,16 @@ class PopupView {
     this.scopeRadios.forEach((radio) => {
       radio.checked = radio.value === scope;
     });
-    this.customSitesSection.style.display = scope === "custom" ? "flex" : "none";
+    this.customSitesSection.style.display =
+      scope === "custom" ? "flex" : "none";
   }
 
   setRtlScope(scope) {
     this.rtlScopeRadios.forEach((radio) => {
       radio.checked = radio.value === scope;
     });
-    this.rtlCustomSitesSection.style.display = scope === "custom" ? "flex" : "none";
+    this.rtlCustomSitesSection.style.display =
+      scope === "custom" ? "flex" : "none";
   }
 
   setCurrentSiteLabel(hostname) {
@@ -82,7 +90,12 @@ class SiteListEditor {
   #listEl;
   #onChange;
 
-  constructor(repository, settingsKey, { inputEl, addBtnEl, listEl }, onChange) {
+  constructor(
+    repository,
+    settingsKey,
+    { inputEl, addBtnEl, listEl },
+    onChange,
+  ) {
     this.#repository = repository;
     this.#settingsKey = settingsKey;
     this.#inputEl = inputEl;
@@ -120,7 +133,9 @@ class SiteListEditor {
     const list = settings[this.#settingsKey] || [];
     if (list.includes(value)) return;
 
-    await this.#repository.updateSettings({ [this.#settingsKey]: [...list, value] });
+    await this.#repository.updateSettings({
+      [this.#settingsKey]: [...list, value],
+    });
     this.#inputEl.value = "";
     await this.render();
     this.#onChange?.();
@@ -130,7 +145,7 @@ class SiteListEditor {
     const settings = await this.#repository.getSettings();
     const list = settings[this.#settingsKey] || [];
     await this.#repository.updateSettings({
-      [this.#settingsKey]: list.filter((s) => s !== site)
+      [this.#settingsKey]: list.filter((s) => s !== site),
     });
     await this.render();
     this.#onChange?.();
@@ -165,20 +180,32 @@ class PopupController {
       {
         inputEl: document.getElementById("customSiteInput"),
         addBtnEl: document.getElementById("addSiteBtn"),
-        listEl: document.getElementById("customSitesList")
+        listEl: document.getElementById("customSitesList"),
       },
-      () => this.#broadcastUpdate()
+      () => this.#broadcastUpdate(),
     );
+
     this.#rtlSiteEditor = new SiteListEditor(
       this.#repository,
       "rtlCustomSites",
       {
         inputEl: document.getElementById("rtlCustomSiteInput"),
         addBtnEl: document.getElementById("rtlAddSiteBtn"),
-        listEl: document.getElementById("rtlCustomSitesList")
+        listEl: document.getElementById("rtlCustomSitesList"),
       },
-      () => this.#broadcastUpdate()
+      () => this.#broadcastUpdate(),
     );
+
+    this.excludedPathsEditor = new SiteListEditor(
+      this.repository,
+      "excludedPaths",
+      document.getElementById("excludedPathInput"),
+      document.getElementById("excludedPathAddBtn"),
+      document.getElementById("excludedPathsList"),
+      this.broadcastUpdate,
+    );
+    await this.excludedPathsEditor.render();
+    this.excludedPathsEditor.bindEvents();
 
     await this.#fontSiteEditor.render();
     await this.#rtlSiteEditor.render();
@@ -189,7 +216,9 @@ class PopupController {
       const hostname = this.#safeHostname(this.#activeTab.url);
       this.#view.setCurrentSiteLabel(hostname || "این صفحه پشتیبانی نمی‌شود");
       this.#view.setCurrentSiteToggle(settings.perSiteOverrides[hostname]);
-      this.#view.setRtlCurrentSiteToggle(settings.rtlPerSiteOverrides[hostname]);
+      this.#view.setRtlCurrentSiteToggle(
+        settings.rtlPerSiteOverrides[hostname],
+      );
     }
 
     this.#bindEvents();
@@ -204,7 +233,10 @@ class PopupController {
   }
 
   async #getActiveTab() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
     return tab;
   }
 
@@ -218,7 +250,9 @@ class PopupController {
 
   #bindEvents() {
     this.#view.globalToggle.addEventListener("change", async (e) => {
-      await this.#repository.updateSettings({ isGloballyEnabled: e.target.checked });
+      await this.#repository.updateSettings({
+        isGloballyEnabled: e.target.checked,
+      });
       this.#broadcastUpdate();
     });
 
@@ -254,7 +288,7 @@ class PopupController {
       if (!this.#activeTab?.id) return;
       await this.#notifyContentScript(this.#activeTab.id, {
         type: "TOGGLE_CURRENT_SITE",
-        payload: { feature: "font", isEnabled: e.target.checked }
+        payload: { feature: "font", isEnabled: e.target.checked },
       });
     });
 
@@ -262,7 +296,7 @@ class PopupController {
       if (!this.#activeTab?.id) return;
       await this.#notifyContentScript(this.#activeTab.id, {
         type: "TOGGLE_CURRENT_SITE",
-        payload: { feature: "rtl", isEnabled: e.target.checked }
+        payload: { feature: "rtl", isEnabled: e.target.checked },
       });
     });
   }
@@ -270,12 +304,16 @@ class PopupController {
   async #broadcastUpdate() {
     const tabs = await chrome.tabs.query({});
     tabs.forEach((tab) => {
-      if (tab.id) this.#notifyContentScript(tab.id, { type: "SETTINGS_UPDATED" });
+      if (tab.id)
+        this.#notifyContentScript(tab.id, { type: "SETTINGS_UPDATED" });
     });
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const controller = new PopupController(new SettingsRepository(), new PopupView());
+  const controller = new PopupController(
+    new SettingsRepository(),
+    new PopupView(),
+  );
   controller.init();
 });

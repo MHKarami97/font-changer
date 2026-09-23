@@ -105,7 +105,7 @@ class IconFontDetector {
     "bootstrap-icons",
     "iconfont",
     "dx-icons",
-    "remixicon"
+    "remixicon",
   ];
 
   #observers = [];
@@ -176,11 +176,14 @@ class IconFontDetector {
     let addedRule = false;
 
     // 1) بررسی خود المان
-    const ownFamily = win.getComputedStyle(element).fontFamily?.toLowerCase() || "";
+    const ownFamily =
+      win.getComputedStyle(element).fontFamily?.toLowerCase() || "";
     if (this.#isIconFont(ownFamily)) {
       const id = this.#ensureId(element);
       const fullFamily = win.getComputedStyle(element).fontFamily;
-      this.rules.push(`[${IconFontDetector.#ID_ATTRIBUTE}="${id}"] { font-family: ${fullFamily} !important; }`);
+      this.rules.push(
+        `[${IconFontDetector.#ID_ATTRIBUTE}="${id}"] { font-family: ${fullFamily} !important; }`,
+      );
       addedRule = true;
     }
 
@@ -197,7 +200,7 @@ class IconFontDetector {
         const id = this.#ensureId(element);
         const fullFamily = pseudoStyle.fontFamily;
         this.rules.push(
-          `[${IconFontDetector.#ID_ATTRIBUTE}="${id}"]${pseudo} { font-family: ${fullFamily} !important; }`
+          `[${IconFontDetector.#ID_ATTRIBUTE}="${id}"]${pseudo} { font-family: ${fullFamily} !important; }`,
         );
         addedRule = true;
       }
@@ -208,7 +211,7 @@ class IconFontDetector {
 
   #isIconFont(lowerCaseFamily) {
     return IconFontDetector.#ICON_FONT_KEYWORDS.some((keyword) =>
-      lowerCaseFamily.includes(keyword)
+      lowerCaseFamily.includes(keyword),
     );
   }
 
@@ -273,7 +276,8 @@ class DirectionApplier {
     const html = document.documentElement;
 
     if (!html.hasAttribute(DirectionApplier.#ORIGINAL_DIR_ATTR)) {
-      const originalDir = html.getAttribute("dir") || DirectionApplier.#NONE_MARKER;
+      const originalDir =
+        html.getAttribute("dir") || DirectionApplier.#NONE_MARKER;
       html.setAttribute(DirectionApplier.#ORIGINAL_DIR_ATTR, originalDir);
     }
 
@@ -296,7 +300,9 @@ class DirectionApplier {
     const html = document.documentElement;
 
     if (html.hasAttribute(DirectionApplier.#ORIGINAL_DIR_ATTR)) {
-      const originalDir = html.getAttribute(DirectionApplier.#ORIGINAL_DIR_ATTR);
+      const originalDir = html.getAttribute(
+        DirectionApplier.#ORIGINAL_DIR_ATTR,
+      );
       if (originalDir === DirectionApplier.#NONE_MARKER) {
         html.removeAttribute("dir");
       } else {
@@ -341,6 +347,15 @@ class FontChangerController {
         strategy.isApplicable(hostname, document, settings);
     }
 
+    var isExcluded = UrlPatternMatcher.isExcluded(
+      hostname,
+      pathname,
+      settings.excludedPaths,
+    );
+    if (isExcluded) {
+      shouldApply = false;
+    }
+
     if (shouldApply) {
       // ترتیب اجرا حیاتی است: ابتدا باید آیکون‌ها را قبل از اعمال فونت
       // جدید اسکن کنیم، چون تشخیص بر اساس Computed Style *اصلیِ* صفحه
@@ -379,7 +394,10 @@ class DirectionController {
     const hostname = window.location.hostname;
 
     const perSiteOverride = settings.rtlPerSiteOverrides[hostname];
-    const strategy = ScopeStrategyFactory.create(settings.rtlScope, "rtlCustomSites");
+    const strategy = ScopeStrategyFactory.create(
+      settings.rtlScope,
+      "rtlCustomSites",
+    );
 
     let shouldApply;
     if (typeof perSiteOverride === "boolean") {
@@ -402,12 +420,12 @@ class DirectionController {
   const fontController = new FontChangerController(
     settingsRepository,
     new GoogleFontLoader(),
-    new FontApplier()
+    new FontApplier(),
   );
 
   const directionController = new DirectionController(
     settingsRepository,
-    new DirectionApplier()
+    new DirectionApplier(),
   );
 
   const runAll = () => {
@@ -443,4 +461,12 @@ class DirectionController {
   } else {
     start();
   }
+
+  var lastPathname = window.location.pathname;
+  setInterval(function () {
+    if (window.location.pathname !== lastPathname) {
+      lastPathname = window.location.pathname;
+      runAll();
+    }
+  }, 500);
 })();

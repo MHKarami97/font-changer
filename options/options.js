@@ -1,102 +1,157 @@
 /**
- * options.js - صفحه تنظیمات پیشرفته
- * از همان کلاس SiteListEditor مفهومی مشابه popup استفاده می‌کند، اما برای
- * سادگی این صفحه، پیاده‌سازی مستقل و سبک نگه داشته شده است.
+ * options.js
+ * ------------------------------------------------------------------
+ * MVC-style controller for the Options page.
+ * - SiteListTableEditor: یک ادیتور عمومی جدول‌محور که با هر settingsKey
+ *   (customSites / rtlCustomSites / excludedPaths) کار می‌کند (DRY).
+ * - OptionsController: هماهنگ‌کننده‌ی سه ادیتور + دکمه‌ی ریست تنظیمات.
  */
-class SiteListTableEditor {
-  #repository;
-  #settingsKey;
-  #tableBody;
-  #inputEl;
 
+class SiteListTableEditor {
   constructor(repository, settingsKey, tableBodySelector, inputId) {
-    this.#repository = repository;
-    this.#settingsKey = settingsKey;
-    this.#tableBody = document.querySelector(tableBodySelector);
-    this.#inputEl = document.getElementById(inputId);
+    this.repository = repository;
+    this.settingsKey = settingsKey;
+    this.tableBody = document.querySelector(tableBodySelector);
+    this.inputEl = document.getElementById(inputId);
   }
 
   async render() {
-    const settings = await this.#repository.getSettings();
-    const sites = settings[this.#settingsKey] || [];
-    this.#tableBody.innerHTML = "";
+    var settings = await this.repository.getSettings();
+    var sites = settings[this.settingsKey];
+
+    this.tableBody.innerHTML = "";
     sites.forEach((site) => {
-      const tr = document.createElement("tr");
+      var tr = document.createElement("tr");
       tr.innerHTML = `<td>${site}</td><td></td>`;
-      const btn = document.createElement("button");
+
+      var btn = document.createElement("button");
       btn.textContent = "حذف";
-      btn.addEventListener("click", () => this.#remove(site));
+      btn.addEventListener("click", () => this.remove(site));
+
       tr.lastElementChild.appendChild(btn);
-      this.#tableBody.appendChild(tr);
+      this.tableBody.appendChild(tr);
     });
   }
 
   async add() {
-    const value = this.#inputEl.value.trim().toLowerCase();
-    if (!value) return;
-    const settings = await this.#repository.getSettings();
-    const list = settings[this.#settingsKey] || [];
-    if (list.includes(value)) return;
-    await this.#repository.updateSettings({ [this.#settingsKey]: [...list, value] });
-    this.#inputEl.value = "";
+    var value = this.inputEl.value.trim().toLowerCase();
+    if (!value) {
+      return;
+    }
+
+    var settings = await this.repository.getSettings();
+    var list = settings[this.settingsKey];
+    if (list.includes(value)) {
+      return;
+    }
+
+    await this.repository.updateSettings({
+      [this.settingsKey]: [...list, value],
+    });
+
+    this.inputEl.value = "";
     await this.render();
   }
 
-  async #remove(site) {
-    const settings = await this.#repository.getSettings();
-    const list = settings[this.#settingsKey] || [];
-    await this.#repository.updateSettings({
-      [this.#settingsKey]: list.filter((s) => s !== site)
+  async remove(site) {
+    var settings = await this.repository.getSettings();
+    var list = settings[this.settingsKey];
+
+    await this.repository.updateSettings({
+      [this.settingsKey]: list.filter((s) => s !== site),
     });
+
     await this.render();
   }
 }
 
 class OptionsController {
-  #repository;
-  #fontEditor;
-  #rtlEditor;
-
   constructor(repository) {
-    this.#repository = repository;
-    this.#fontEditor = new SiteListTableEditor(repository, "customSites", "#sitesTable tbody", "siteInput");
-    this.#rtlEditor = new SiteListTableEditor(repository, "rtlCustomSites", "#rtlSitesTable tbody", "rtlSiteInput");
+    this.repository = repository;
+
+    this.fontEditor = new SiteListTableEditor(
+      repository,
+      "customSites",
+      "#sitesTable tbody",
+      "siteInput",
+    );
+
+    this.rtlEditor = new SiteListTableEditor(
+      repository,
+      "rtlCustomSites",
+      "#rtlSitesTable tbody",
+      "rtlSiteInput",
+    );
+
+    // مسیرهای مستثنا (مثل google.com/maps) - اولویت بالاتر از همه‌ی تنظیمات دیگر
+    this.excludedPathsEditor = new SiteListTableEditor(
+      repository,
+      "excludedPaths",
+      "#excludedPathsTable tbody",
+      "excludedPathInput",
+    );
   }
 
   async init() {
-    await this.#fontEditor.render();
-    await this.#rtlEditor.render();
+    await this.fontEditor.render();
+    await this.rtlEditor.render();
+    await this.excludedPathsEditor.render();
 
-    document.getElementById("addBtn").addEventListener("click", () => this.#fontEditor.add());
+    document
+      .getElementById("addBtn")
+      .addEventListener("click", () => this.fontEditor.add());
     document.getElementById("siteInput").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") this.#fontEditor.add();
+      if (e.key === "Enter") {
+        this.fontEditor.add();
+      }
     });
 
-    document.getElementById("rtlAddBtn").addEventListener("click", () => this.#rtlEditor.add());
+    document
+      .getElementById("rtlAddBtn")
+      .addEventListener("click", () => this.rtlEditor.add());
     document.getElementById("rtlSiteInput").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") this.#rtlEditor.add();
+      if (e.key === "Enter") {
+        this.rtlEditor.add();
+      }
     });
 
-    document.getElementById("resetBtn").addEventListener("click", () => this.#reset());
+    document
+      .getElementById("excludedPathAddBtn")
+      .addEventListener("click", () => this.excludedPathsEditor.add());
+    document
+      .getElementById("excludedPathInput")
+      .addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          this.excludedPathsEditor.add();
+        }
+      });
+
+    document
+      .getElementById("resetBtn")
+      .addEventListener("click", () => this.reset());
   }
 
-  async #reset() {
-    await this.#repository.updateSettings({
+  async reset() {
+    await this.repository.updateSettings({
       isGloballyEnabled: false,
       scope: "off",
       selectedFont: "Vazirmatn",
-      fontWeight: "400",
+      fontWeight: 400,
       customSites: [],
       perSiteOverrides: {},
       rtlScope: "off",
       rtlCustomSites: [],
-      rtlPerSiteOverrides: {}
+      rtlPerSiteOverrides: {},
+      excludedPaths: [],
     });
-    await this.#fontEditor.render();
-    await this.#rtlEditor.render();
+
+    await this.fontEditor.render();
+    await this.rtlEditor.render();
+    await this.excludedPathsEditor.render();
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  new OptionsController(new SettingsRepository()).init();
+  var controller = new OptionsController(new SettingsRepository());
+  controller.init();
 });

@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>تنظیمات پیشرفته - Font Changer</title>
   <link rel="stylesheet" href="options.css" />
 </head>
+
 <body>
   <main class="options-container">
     <h1>تنظیمات پیشرفته Font Changer</h1>
@@ -18,20 +20,49 @@
         <button id="addBtn">افزودن</button>
       </div>
       <table id="sitesTable">
-        <thead><tr><th>دامنه</th><th>حذف</th></tr></thead>
+        <thead>
+          <tr>
+            <th>دامنه</th>
+            <th>حذف</th>
+          </tr>
+        </thead>
         <tbody></tbody>
       </table>
     </section>
 
     <section class="card">
       <h2>سایت‌های سفارشی (اجبار RTL)</h2>
-      <p>لیست دامنه‌هایی که در حالت «فقط سایت‌های سفارشی» جهت آن‌ها به RTL تغییر می‌کند. این تنظیم کاملاً مستقل از تنظیمات فونت است.</p>
+      <p>لیست دامنه‌هایی که در حالت «فقط سایت‌های سفارشی» جهت آن‌ها به RTL تغییر می‌کند. این تنظیم کاملاً مستقل از
+        تنظیمات فونت است.</p>
       <div class="input-row">
         <input type="text" id="rtlSiteInput" placeholder="مثلاً: example.com" />
         <button id="rtlAddBtn">افزودن</button>
       </div>
       <table id="rtlSitesTable">
-        <thead><tr><th>دامنه</th><th>حذف</th></tr></thead>
+        <thead>
+          <tr>
+            <th>دامنه</th>
+            <th>حذف</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>مسیرهای مستثنا شده</h2>
+      <p>آدرس‌هایی که فونت روی آن‌ها هرگز اعمال نمی‌شود (اولویت بالاتر از همه تنظیمات دیگر).</p>
+      <div class="input-row">
+        <input type="text" id="excludedPathInput" placeholder="google.com/maps" />
+        <button id="excludedPathAddBtn">افزودن</button>
+      </div>
+      <table id="excludedPathsTable">
+        <thead>
+          <tr>
+            <th>آدرس</th>
+            <th></th>
+          </tr>
+        </thead>
         <tbody></tbody>
       </table>
     </section>
@@ -49,4 +80,5 @@
   <script src="../lib/settings-repository.js"></script>
   <script src="options.js"></script>
 </body>
+
 </html>

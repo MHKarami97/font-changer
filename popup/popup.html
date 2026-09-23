@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
+
 <head>
   <meta charset="UTF-8" />
   <title>Font Changer</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
+
 <body>
   <div class="popup-container">
     <header class="popup-header">
@@ -62,6 +64,18 @@
 
     <hr class="divider" />
 
+    <section class="section">
+      <label class="field-label">غیرفعال‌سازی روی آدرس‌های خاص</label>
+      <p class="hint">مثال: google.com/maps فقط همان مسیر را مستثنا می‌کند، نه کل google.com</p>
+      <div class="input-row">
+        <input type="text" id="excludedPathInput" placeholder="google.com/maps" />
+        <button id="excludedPathAddBtn">افزودن</button>
+      </div>
+      <ul id="excludedPathsList" class="site-list"></ul>
+    </section>
+
+    <hr class="divider" />
+
     <header class="popup-header">
       <h1>اجبار جهت راست‌به‌چپ (RTL)</h1>
     </header>
@@ -105,4 +119,5 @@
   <script src="fonts-catalog.js"></script>
   <script src="popup.js"></script>
 </body>
+
 </html>
