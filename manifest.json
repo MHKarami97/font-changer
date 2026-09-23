@@ -2,18 +2,11 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "short_name": "Font Changer",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "description": "__MSG_extDescription__",
   "default_locale": "fa",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "scripting",
-    "tabs"
-  ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background/background.js"
   },
@@ -36,9 +29,7 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "<all_urls>"
-      ],
+      "matches": ["<all_urls>"],
       "js": [
         "lib/settings-repository.js",
         "lib/scope-strategies.js",

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" data-theme="dark">
 
 <head>
   <meta charset="UTF-8" />
@@ -11,6 +11,15 @@
 <body>
   <main class="options-container">
     <h1>تنظیمات پیشرفته Font Changer</h1>
+
+    <section class="card">
+      <h2>ظاهر افزونه</h2>
+      <p>قالب نمایش پنجره افزونه (پاپ‌آپ و همین صفحه تنظیمات) را مشخص می‌کند. پیش‌فرض: تاریک.</p>
+      <div class="radio-group">
+        <label><input type="radio" name="theme" value="dark" /> تاریک</label>
+        <label><input type="radio" name="theme" value="light" /> روشن</label>
+      </div>
+    </section>
 
     <section class="card">
       <h2>سایت‌های سفارشی (فونت)</h2>
@@ -51,7 +60,7 @@
 
     <section class="card">
       <h2>مسیرهای مستثنا شده</h2>
-      <p>آدرس‌هایی که فونت روی آن‌ها هرگز اعمال نمی‌شود (اولویت بالاتر از همه تنظیمات دیگر).</p>
+      <p>آدرس‌هایی که فونت و RTL روی آن‌ها هرگز اعمال نمی‌شود (اولویت بالاتر از همه تنظیمات دیگر).</p>
       <div class="input-row">
         <input type="text" id="excludedPathInput" placeholder="google.com/maps" />
         <button id="excludedPathAddBtn">افزودن</button>
@@ -69,15 +78,18 @@
 
     <section class="card">
       <h2>بازنشانی تنظیمات</h2>
-      <p>تمام تنظیمات (فونت انتخابی، دامنه اعمال، سایت‌های سفارشی فونت و RTL) به حالت پیش‌فرض برمی‌گردد.</p>
+      <p>تمام تنظیمات (فونت انتخابی، دامنه اعمال، سایت‌های سفارشی فونت و RTL، مسیرهای مستثنا) به حالت پیش‌فرض
+        برمی‌گردد. تم به «تاریک» بازمی‌گردد.</p>
       <button id="resetBtn" class="danger">بازنشانی به حالت پیش‌فرض</button>
     </section>
 
     <footer>
-      <a href="../about/about.html">درباره سازنده افزونه</a>
+      <a href="../about/about.html">درباره افزونه</a>
     </footer>
   </main>
+
   <script src="../lib/settings-repository.js"></script>
+  <script src="../lib/theme-manager.js"></script>
   <script src="options.js"></script>
 </body>
 

@@ -4,6 +4,8 @@
  * MVC: PopupView (DOM) + PopupController (منطق) + SiteListEditor (Composition).
  * DRY - Don't Repeat Yourself: یک کلاس SiteListEditor برای هر سه لیست
  * (customSites / rtlCustomSites / excludedPaths) استفاده می‌شود.
+ * ThemeManager (lib/theme-manager.js) مسئول قالب تاریک/روشن خود پاپ‌آپ است
+ * و کاملاً مستقل از تنظیمات فونت/RTL عمل می‌کند.
  */
 
 class PopupView {
@@ -25,6 +27,10 @@ class PopupView {
     this.rtlCurrentSiteToggle = document.getElementById("rtlCurrentSiteToggle");
     this.rtlScopeRadios = Array.from(
       document.querySelectorAll('input[name="rtlScope"]'),
+    );
+
+    this.themeRadios = Array.from(
+      document.querySelectorAll('input[name="theme"]'),
     );
   }
 
@@ -61,6 +67,15 @@ class PopupView {
       scope === "custom" ? "flex" : "none";
   }
 
+  /**
+   * @param {string} theme "dark" | "light"
+   */
+  setTheme(theme) {
+    this.themeRadios.forEach((radio) => {
+      radio.checked = radio.value === theme;
+    });
+  }
+
   setCurrentSiteLabel(hostname) {
     var label = hostname || "این صفحه پشتیبانی نمی‌شود";
     this.currentSiteLabel.textContent = label;
@@ -76,7 +91,6 @@ class PopupView {
   }
 
   /**
-   * وضعیت غیرفعال‌بودن آدرس جاری به‌خاطر یک مسیر مستثنا را روی دو سوییچ نشان می‌دهد.
    * @param {boolean} isExcluded
    */
   setExcludedBanner(isExcluded) {
@@ -172,6 +186,7 @@ class PopupController {
   constructor(repository, view) {
     this.repository = repository;
     this.view = view;
+    this.themeManager = new ThemeManager(repository);
     this.activeTab = null;
     this.fontSiteEditor = null;
     this.rtlSiteEditor = null;
@@ -179,6 +194,10 @@ class PopupController {
   }
 
   async init() {
+    // تم باید همین ابتدا اعمال شود تا با data-theme="dark" پیش‌فرض HTML هم‌خوان بماند.
+    var theme = await this.themeManager.applyStoredTheme();
+    this.view.setTheme(theme);
+
     this.activeTab = await this.getActiveTab();
     var settings = await this.repository.getSettings();
 
@@ -210,7 +229,6 @@ class PopupController {
       this.broadcastUpdate,
     );
 
-    // مسیرهای مستثنا (مثل google.com/maps) - فونت و RTL روی آن‌ها هرگز اعمال نمی‌شود.
     this.excludedPathsEditor = new SiteListEditor(
       this.repository,
       "excludedPaths",
@@ -312,6 +330,14 @@ class PopupController {
         await this.repository.updateSettings({ rtlScope: e.target.value });
         this.view.setRtlScope(e.target.value);
         this.broadcastUpdate();
+      });
+    });
+
+    // قالب تاریک/روشن فقط ظاهر خود افزونه است - نیازی به broadcast به content script ندارد.
+    this.view.themeRadios.forEach((radio) => {
+      radio.addEventListener("change", async (e) => {
+        if (!e.target.checked) return;
+        await this.themeManager.setTheme(e.target.value);
       });
     });
 

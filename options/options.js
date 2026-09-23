@@ -4,7 +4,7 @@
  * MVC-style controller for the Options page.
  * - SiteListTableEditor: یک ادیتور عمومی جدول‌محور که با هر settingsKey
  *   (customSites / rtlCustomSites / excludedPaths) کار می‌کند (DRY).
- * - OptionsController: هماهنگ‌کننده‌ی سه ادیتور + دکمه‌ی ریست تنظیمات.
+ * - OptionsController: هماهنگ‌کننده‌ی سه ادیتور + قالب (تم) + دکمه‌ی ریست.
  */
 
 class SiteListTableEditor {
@@ -17,7 +17,7 @@ class SiteListTableEditor {
 
   async render() {
     var settings = await this.repository.getSettings();
-    var sites = settings[this.settingsKey];
+    var sites = settings[this.settingsKey] || [];
 
     this.tableBody.innerHTML = "";
     sites.forEach((site) => {
@@ -40,7 +40,7 @@ class SiteListTableEditor {
     }
 
     var settings = await this.repository.getSettings();
-    var list = settings[this.settingsKey];
+    var list = settings[this.settingsKey] || [];
     if (list.includes(value)) {
       return;
     }
@@ -55,7 +55,7 @@ class SiteListTableEditor {
 
   async remove(site) {
     var settings = await this.repository.getSettings();
-    var list = settings[this.settingsKey];
+    var list = settings[this.settingsKey] || [];
 
     await this.repository.updateSettings({
       [this.settingsKey]: list.filter((s) => s !== site),
@@ -68,6 +68,7 @@ class SiteListTableEditor {
 class OptionsController {
   constructor(repository) {
     this.repository = repository;
+    this.themeManager = new ThemeManager(repository);
 
     this.fontEditor = new SiteListTableEditor(
       repository,
@@ -83,16 +84,22 @@ class OptionsController {
       "rtlSiteInput",
     );
 
-    // مسیرهای مستثنا (مثل google.com/maps) - اولویت بالاتر از همه‌ی تنظیمات دیگر
     this.excludedPathsEditor = new SiteListTableEditor(
       repository,
       "excludedPaths",
       "#excludedPathsTable tbody",
       "excludedPathInput",
     );
+
+    this.themeRadios = Array.from(
+      document.querySelectorAll('input[name="theme"]'),
+    );
   }
 
   async init() {
+    var theme = await this.themeManager.applyStoredTheme();
+    this.setThemeRadios(theme);
+
     await this.fontEditor.render();
     await this.rtlEditor.render();
     await this.excludedPathsEditor.render();
@@ -126,9 +133,22 @@ class OptionsController {
         }
       });
 
+    this.themeRadios.forEach((radio) => {
+      radio.addEventListener("change", async (e) => {
+        if (!e.target.checked) return;
+        await this.themeManager.setTheme(e.target.value);
+      });
+    });
+
     document
       .getElementById("resetBtn")
       .addEventListener("click", () => this.reset());
+  }
+
+  setThemeRadios(theme) {
+    this.themeRadios.forEach((radio) => {
+      radio.checked = radio.value === theme;
+    });
   }
 
   async reset() {
@@ -136,14 +156,18 @@ class OptionsController {
       isGloballyEnabled: false,
       scope: "off",
       selectedFont: "Vazirmatn",
-      fontWeight: 400,
+      fontWeight: "400",
       customSites: [],
       perSiteOverrides: {},
       rtlScope: "off",
       rtlCustomSites: [],
       rtlPerSiteOverrides: {},
       excludedPaths: [],
+      theme: "dark",
     });
+
+    var theme = await this.themeManager.applyStoredTheme();
+    this.setThemeRadios(theme);
 
     await this.fontEditor.render();
     await this.rtlEditor.render();
