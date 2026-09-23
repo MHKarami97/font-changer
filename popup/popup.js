@@ -38,7 +38,7 @@ class PopupView {
   }
 
   setGlobalToggle(isEnabled) {
-    this.globalToggle.checked = isEnabled;
+    this.globalToggle.checked = Boolean(isEnabled);
   }
 
   setWeight(weight) {
@@ -62,8 +62,9 @@ class PopupView {
   }
 
   setCurrentSiteLabel(hostname) {
-    this.currentSiteLabel.textContent = hostname;
-    this.rtlCurrentSiteLabel.textContent = hostname;
+    var label = hostname || "این صفحه پشتیبانی نمی‌شود";
+    this.currentSiteLabel.textContent = label;
+    this.rtlCurrentSiteLabel.textContent = label;
   }
 
   setCurrentSiteToggle(isEnabled) {
@@ -72,6 +73,15 @@ class PopupView {
 
   setRtlCurrentSiteToggle(isEnabled) {
     this.rtlCurrentSiteToggle.checked = Boolean(isEnabled);
+  }
+
+  /**
+   * وضعیت غیرفعال‌بودن آدرس جاری به‌خاطر یک مسیر مستثنا را روی دو سوییچ نشان می‌دهد.
+   * @param {boolean} isExcluded
+   */
+  setExcludedBanner(isExcluded) {
+    this.currentSiteToggle.disabled = isExcluded;
+    this.rtlCurrentSiteToggle.disabled = isExcluded;
   }
 }
 
@@ -99,7 +109,7 @@ class SiteListEditor {
 
   async render() {
     var settings = await this.repository.getSettings();
-    var sites = settings[this.settingsKey];
+    var sites = settings[this.settingsKey] || [];
 
     this.listEl.innerHTML = "";
     sites.forEach((site) => {
@@ -131,7 +141,7 @@ class SiteListEditor {
     }
 
     var settings = await this.repository.getSettings();
-    var list = settings[this.settingsKey];
+    var list = settings[this.settingsKey] || [];
     if (list.includes(value)) {
       return;
     }
@@ -147,7 +157,7 @@ class SiteListEditor {
 
   async remove(site) {
     var settings = await this.repository.getSettings();
-    var list = settings[this.settingsKey];
+    var list = settings[this.settingsKey] || [];
 
     await this.repository.updateSettings({
       [this.settingsKey]: list.filter((s) => s !== site),
@@ -200,40 +210,41 @@ class PopupController {
       this.broadcastUpdate,
     );
 
-    // مسیرهای مستثنا (مثل google.com/maps) - اگر این عناصر در popup.html وجود نداشته باشند،
-    // این بخش نادیده گرفته می‌شود بدون اینکه بقیه‌ی پاپ‌آپ را خراب کند.
-    var excludedInput = document.getElementById("excludedPathInput");
-    var excludedAddBtn = document.getElementById("excludedPathAddBtn");
-    var excludedList = document.getElementById("excludedPathsList");
-
-    if (excludedInput && excludedAddBtn && excludedList) {
-      this.excludedPathsEditor = new SiteListEditor(
-        this.repository,
-        "excludedPaths",
-        {
-          inputEl: excludedInput,
-          addBtnEl: excludedAddBtn,
-          listEl: excludedList,
-        },
-        this.broadcastUpdate,
-      );
-    }
+    // مسیرهای مستثنا (مثل google.com/maps) - فونت و RTL روی آن‌ها هرگز اعمال نمی‌شود.
+    this.excludedPathsEditor = new SiteListEditor(
+      this.repository,
+      "excludedPaths",
+      {
+        inputEl: document.getElementById("excludedPathInput"),
+        addBtnEl: document.getElementById("excludedPathAddBtn"),
+        listEl: document.getElementById("excludedPathsList"),
+      },
+      this.broadcastUpdate,
+    );
 
     await this.fontSiteEditor.render();
     await this.rtlSiteEditor.render();
+    await this.excludedPathsEditor.render();
     this.fontSiteEditor.bindEvents();
     this.rtlSiteEditor.bindEvents();
-
-    if (this.excludedPathsEditor) {
-      await this.excludedPathsEditor.render();
-      this.excludedPathsEditor.bindEvents();
-    }
+    this.excludedPathsEditor.bindEvents();
 
     if (this.activeTab?.url) {
       var hostname = this.safeHostname(this.activeTab.url);
+      var pathname = this.safePathname(this.activeTab.url);
       this.view.setCurrentSiteLabel(hostname);
       this.view.setCurrentSiteToggle(settings.perSiteOverrides[hostname]);
       this.view.setRtlCurrentSiteToggle(settings.rtlPerSiteOverrides[hostname]);
+
+      var isExcluded =
+        hostname &&
+        typeof UrlPatternMatcher !== "undefined" &&
+        UrlPatternMatcher.isExcluded(
+          hostname,
+          pathname || "",
+          settings.excludedPaths,
+        );
+      this.view.setExcludedBanner(Boolean(isExcluded));
     }
 
     this.bindEvents();
@@ -242,6 +253,14 @@ class PopupController {
   safeHostname(url) {
     try {
       return new URL(url).hostname;
+    } catch {
+      return null;
+    }
+  }
+
+  safePathname(url) {
+    try {
+      return new URL(url).pathname;
     } catch {
       return null;
     }

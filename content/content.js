@@ -1,38 +1,20 @@
 /**
  * content.js
  * ------------------------------------------------------------------
- * نقطه ورود Content Script.
+ * نقطه ورود Content Script. مسئولیت‌ها بر اساس SRP بین چند کلاس تقسیم شده‌اند:
+ *   - GoogleFontLoader      : بارگذاری فونت از Google Fonts
+ *   - ShadowDomWalker       : پیمایش بازگشتی Light DOM + Shadow DOM
+ *   - IconFontDetector      : تشخیص و محافظت از فونت آیکون‌ها (حتی داخل Shadow DOM)
+ *   - FontApplier           : اعمال فونت روی <html> با CSS Injection
+ *   - DirectionApplier      : اجباری‌کردن جهت صفحه به RTL (ویژگی مستقل)
+ *   - UrlPatternMatcher     : تشخیص مسیرهای مستثنا (مثل google.com/maps) - lib/url-pattern-matcher.js
+ *   - FontChangerController / DirectionController : Orchestrator هرکدام (Facade)
  *
- *   - GoogleFontLoader   : بارگذاری فونت از Google Fonts
- *   - IconFontDetector   : تشخیص المان‌های آیکونی، هم روی خود المان و هم
- *                          روی Pseudo-element های ::before/::after (که محل
- *                          واقعی رندر آیکون در بسیاری از سیستم‌ها مثل
- *                          Google Symbols/Material Symbols است)، در سراسر
- *                          Light DOM و Shadow DOM
- *   - FontApplier        : اعمال فونت روی <html> با CSS Injection
- *   - DirectionApplier   : اجباری‌کردن جهت صفحه به RTL (ویژگی مستقل)
- *   - FontChangerController / DirectionController : Orchestrator (Facade)
- *
- * === چرا نسخه‌های قبلی آیکون Google Maps را درست نکردند؟ ===
- *
- * ریشه واقعی مشکل «حساسیت به حروف بزرگ/کوچک» نبود (آن از قبل با
- * toLowerCase() رفع شده بود). ریشه مشکل این بود که بسیاری از سیستم‌های
- * آیکون گوگل (از جمله Google Symbols در Google Maps) گلیف آیکون را با
- * `content` روی Pseudo-element (`::before` یا `::after`) رندر می‌کنند،
- * نه مستقیماً با متن داخل خود المان.
- *
- * جاوااسکریپت به‌هیچ‌وجه نمی‌تواند `element.style` را برای یک Pseudo-element
- * تنظیم کند (چون ::before/::after بخشی از DOM واقعی نیستند و Node مستقلی
- * محسوب نمی‌شوند)؛ بنابراین قفل inline که روی خودِ المان اعمال می‌شد، هیچ
- * تاثیری روی فونت گلیف داخل ::before نداشت و آیکون همچنان مربعی می‌ماند.
- *
- * === راه‌حل ===
- * تنها روش معتبر برای override کردن فونت یک Pseudo-element، تزریق یک
- * قانون CSS واقعی با selector مخصوص آن Pseudo-element است (نه inline
- * style). پس این‌جا برای هر المانی که آیکونش (خودش یا ::before/::after آن)
- * از فونت آیکونی استفاده می‌کند، یک شناسه یکتا (data-fc-icon-id) تخصیص
- * داده و یک قانون CSS اختصاصی برای آن id + آن pseudo-element، با
- * specificity بالاتر از قانون سراسری فونت، در همان <style> تزریق می‌شود.
+ * قانون اولویت مسیرهای مستثنا:
+ * excludedPaths بالاترین اولویت را نسبت به تمام تنظیمات دیگر (scope, perSiteOverrides,
+ * rtlScope, rtlPerSiteOverrides) دارد. اگر آدرس جاری (hostname + pathname) با یکی از
+ * الگوهای excludedPaths مطابقت داشته باشد، هم تغییر فونت و هم اجبار RTL غیرفعال می‌شوند،
+ * حتی اگر کاربر برای همان سایت یک override دستی «فعال» ثبت کرده باشد.
  */
 
 class GoogleFontLoader {
@@ -45,8 +27,7 @@ class GoogleFontLoader {
     const link = document.createElement("link");
     link.id = GoogleFontLoader.#LINK_ID;
     link.rel = "stylesheet";
-    const encodedFamily = fontFamily.trim().replace(/\s+/g, "+");
-    link.href = `https://fonts.googleapis.com/css2?family=${encodedFamily}:wght@${weight}&display=swap`;
+    link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily)}:wght@${weight}&display=swap`;
     (document.head || document.documentElement).appendChild(link);
   }
 
@@ -58,9 +39,15 @@ class GoogleFontLoader {
 
 /**
  * ShadowDomWalker
- * پیمایش بازگشتی درخت DOM به‌همراه تمام Shadow Root های "open" داخل آن.
+ * ------------------------------------------------------------------
+ * مسئولیت واحد: پیمایش بازگشتی درخت DOM به‌همراه تمام Shadow Root های
+ * قابل‌دسترسی (open) داخل آن.
  */
 class ShadowDomWalker {
+  /**
+   * @param {ParentNode} root
+   * @param {(element: Element) => void} visit
+   */
   static walk(root, visit) {
     if (!root) return;
     const elements = root.querySelectorAll ? root.querySelectorAll("*") : [];
@@ -72,6 +59,10 @@ class ShadowDomWalker {
     });
   }
 
+  /**
+   * @param {ParentNode} root
+   * @returns {ShadowRoot[]}
+   */
   static collectShadowRoots(root) {
     const roots = [];
     ShadowDomWalker.walk(root, (el) => {
@@ -84,12 +75,12 @@ class ShadowDomWalker {
 /**
  * IconFontDetector
  * ------------------------------------------------------------------
- * تشخیص المان‌های آیکونی (هم روی خود المان، هم روی ::before/::after آن)
- * در سراسر Light DOM و Shadow DOM، و تولید قوانین CSS اختصاصی برای
- * قفل‌کردن فونت اصلی آن‌ها.
+ * تشخیص المان‌های آیکونی (بر اساس font-family محاسبه‌شده) در سراسر
+ * Light DOM و Shadow DOM، و قفل‌کردن فونت اصلی آن‌ها با inline !important
+ * تا با تغییر فونت سراسری صفحه دست‌نخورده باقی بمانند.
  */
 class IconFontDetector {
-  static #ID_ATTRIBUTE = "data-fc-icon-id";
+  static #MARK_ATTRIBUTE = "data-fc-icon";
 
   static #ICON_FONT_KEYWORDS = [
     "material icons",
@@ -110,24 +101,21 @@ class IconFontDetector {
 
   #observers = [];
   #debounceTimer = null;
-  #nextId = 1;
-  #onRulesChanged;
 
-  /** @param {(rules: string[]) => void} onRulesChanged هر بار قانون جدید تولید شود صدا زده می‌شود */
-  constructor(onRulesChanged) {
-    this.#onRulesChanged = onRulesChanged;
-    this.rules = [];
-  }
-
+  /**
+   * پیمایش کامل (Light DOM + Shadow DOM) و قفل‌کردن فونت اصلی آیکون‌ها.
+   * باید پیش از تزریق قانون سراسری فونت اجرا شود.
+   * @param {ParentNode} root
+   */
   scan(root = document.body) {
     if (!root) return;
-    let hasNewRule = false;
-    ShadowDomWalker.walk(root, (el) => {
-      if (this.#processElement(el)) hasNewRule = true;
-    });
-    if (hasNewRule) this.#onRulesChanged?.(this.rules);
+    ShadowDomWalker.walk(root, (el) => this.#lockIfIconFont(el));
   }
 
+  /**
+   * فعال‌سازی MutationObserver روی سند اصلی و تمام Shadow Root های موجود،
+   * به‌همراه debounce برای جلوگیری از افت Performance روی سایت‌های پرتغییر.
+   */
   observe(root = document.documentElement) {
     this.disconnect();
 
@@ -150,12 +138,6 @@ class IconFontDetector {
     }
   }
 
-  reset() {
-    this.disconnect();
-    this.rules = [];
-    this.#nextId = 1;
-  }
-
   #scheduleRescan(root) {
     if (this.#debounceTimer) clearTimeout(this.#debounceTimer);
     this.#debounceTimer = setTimeout(() => {
@@ -164,70 +146,30 @@ class IconFontDetector {
     }, 200);
   }
 
-  /**
-   * @returns {boolean} true اگر قانون جدیدی برای این المان اضافه شد
-   */
-  #processElement(element) {
-    if (!(element instanceof Element)) return false;
+  #lockIfIconFont(element) {
+    if (!(element instanceof Element)) return;
+    if (element.hasAttribute(IconFontDetector.#MARK_ATTRIBUTE)) return;
 
-    const win = element.ownerDocument?.defaultView;
-    if (!win) return false;
-
-    let addedRule = false;
-
-    // 1) بررسی خود المان
-    const ownFamily =
-      win.getComputedStyle(element).fontFamily?.toLowerCase() || "";
-    if (this.#isIconFont(ownFamily)) {
-      const id = this.#ensureId(element);
-      const fullFamily = win.getComputedStyle(element).fontFamily;
-      this.rules.push(
-        `[${IconFontDetector.#ID_ATTRIBUTE}="${id}"] { font-family: ${fullFamily} !important; }`,
-      );
-      addedRule = true;
-    }
-
-    // 2) بررسی ::before و ::after (محل رایج رندر گلیف آیکون در بسیاری از
-    // سیستم‌های آیکون مثل Google Symbols)
-    for (const pseudo of ["::before", "::after"]) {
-      const pseudoStyle = win.getComputedStyle(element, pseudo);
-      const content = pseudoStyle.content;
-      // اگر content واقعاً چیزی رندر می‌کند (نه "none")، پس این pseudo فعال است
-      if (!content || content === "none" || content === '""') continue;
-
-      const pseudoFamily = pseudoStyle.fontFamily?.toLowerCase() || "";
-      if (this.#isIconFont(pseudoFamily)) {
-        const id = this.#ensureId(element);
-        const fullFamily = pseudoStyle.fontFamily;
-        this.rules.push(
-          `[${IconFontDetector.#ID_ATTRIBUTE}="${id}"]${pseudo} { font-family: ${fullFamily} !important; }`,
-        );
-        addedRule = true;
-      }
-    }
-
-    return addedRule;
-  }
-
-  #isIconFont(lowerCaseFamily) {
-    return IconFontDetector.#ICON_FONT_KEYWORDS.some((keyword) =>
-      lowerCaseFamily.includes(keyword),
+    const computedStyle =
+      element.ownerDocument?.defaultView?.getComputedStyle(element);
+    const computedFamily = computedStyle?.fontFamily?.toLowerCase() || "";
+    const isIconFont = IconFontDetector.#ICON_FONT_KEYWORDS.some((keyword) =>
+      computedFamily.includes(keyword),
     );
-  }
 
-  #ensureId(element) {
-    let id = element.getAttribute(IconFontDetector.#ID_ATTRIBUTE);
-    if (!id) {
-      id = String(this.#nextId++);
-      element.setAttribute(IconFontDetector.#ID_ATTRIBUTE, id);
+    if (isIconFont) {
+      element.style.setProperty(
+        "font-family",
+        computedStyle.fontFamily,
+        "important",
+      );
+      element.setAttribute(IconFontDetector.#MARK_ATTRIBUTE, "true");
     }
-    return id;
   }
 }
 
 class FontApplier {
   static #STYLE_ID = "__font-changer-style__";
-  static #ICON_STYLE_ID = "__font-changer-icon-protection-style__";
 
   apply(fontFamily) {
     let styleTag = document.getElementById(FontApplier.#STYLE_ID);
@@ -243,30 +185,17 @@ class FontApplier {
     `;
   }
 
-  /**
-   * قوانین محافظتی آیکون را در یک <style> جداگانه، بعد از قانون سراسری
-   * فونت، تزریق می‌کند تا specificity بالاتر (attribute selector) آن‌ها
-   * قطعاً برنده شود.
-   * @param {string[]} rules
-   */
-  applyIconProtection(rules) {
-    let styleTag = document.getElementById(FontApplier.#ICON_STYLE_ID);
-    if (!styleTag) {
-      styleTag = document.createElement("style");
-      styleTag.id = FontApplier.#ICON_STYLE_ID;
-      (document.head || document.documentElement).appendChild(styleTag);
-    }
-    styleTag.textContent = rules.join("\n");
-  }
-
   remove() {
     const styleTag = document.getElementById(FontApplier.#STYLE_ID);
     if (styleTag) styleTag.remove();
-    const iconStyleTag = document.getElementById(FontApplier.#ICON_STYLE_ID);
-    if (iconStyleTag) iconStyleTag.remove();
   }
 }
 
+/**
+ * DirectionApplier
+ * ------------------------------------------------------------------
+ * قابلیت مستقل "اجبار جهت راست‌به‌چپ (RTL)".
+ */
 class DirectionApplier {
   static #STYLE_ID = "__font-changer-rtl-style__";
   static #ORIGINAL_DIR_ATTR = "data-fc-original-dir";
@@ -322,16 +251,17 @@ class FontChangerController {
   #fontApplier;
   #iconDetector;
 
-  constructor(settingsRepository, fontLoader, fontApplier) {
+  constructor(settingsRepository, fontLoader, fontApplier, iconDetector) {
     this.#settingsRepository = settingsRepository;
     this.#fontLoader = fontLoader;
     this.#fontApplier = fontApplier;
-    this.#iconDetector = new IconFontDetector((rules) => {
-      this.#fontApplier.applyIconProtection(rules);
-    });
+    this.#iconDetector = iconDetector;
   }
 
-  async run() {
+  /**
+   * @param {boolean} isExcluded آیا آدرس جاری در excludedPaths است (بالاترین اولویت)
+   */
+  async run(isExcluded) {
     const settings = await this.#settingsRepository.getSettings();
     const hostname = window.location.hostname;
 
@@ -339,7 +269,9 @@ class FontChangerController {
     const strategy = ScopeStrategyFactory.create(settings.scope, "customSites");
 
     let shouldApply;
-    if (typeof perSiteOverride === "boolean") {
+    if (isExcluded) {
+      shouldApply = false;
+    } else if (typeof perSiteOverride === "boolean") {
       shouldApply = perSiteOverride;
     } else {
       shouldApply =
@@ -347,33 +279,15 @@ class FontChangerController {
         strategy.isApplicable(hostname, document, settings);
     }
 
-    var isExcluded = UrlPatternMatcher.isExcluded(
-      hostname,
-      pathname,
-      settings.excludedPaths,
-    );
-    if (isExcluded) {
-      shouldApply = false;
-    }
-
     if (shouldApply) {
-      // ترتیب اجرا حیاتی است: ابتدا باید آیکون‌ها را قبل از اعمال فونت
-      // جدید اسکن کنیم، چون تشخیص بر اساس Computed Style *اصلیِ* صفحه
-      // (فونت آیکونی که خود سایت تعریف کرده) انجام می‌شود. اگر فونت جدید
-      // زودتر اعمال شود، Computed Style همان فونت جدید (مثلاً Vazirmatn)
-      // را برمی‌گرداند و هیچ‌کدام از کلیدواژه‌های آیکون تشخیص داده نمی‌شود.
-      this.#iconDetector.reset();
+      // اسکن آیکون‌ها (Light + Shadow DOM) باید پیش از اعمال فونت انجام
+      // شود تا Computed Style اصلی (قبل از override) خوانده شود.
       this.#iconDetector.scan(document.body);
-
+      this.#iconDetector.observe(document.documentElement);
       this.#fontLoader.load(settings.selectedFont, settings.fontWeight);
       this.#fontApplier.apply(settings.selectedFont);
-
-      // بعد از اعمال فونت، رصد تغییرات DOM را فعال می‌کنیم تا المان‌های
-      // آیکونیِ جدید (که بعداً توسط اپلیکیشن‌های SPA مثل Google Maps
-      // رندر می‌شوند) هم با فونت اصلی‌شان محافظت شوند.
-      this.#iconDetector.observe(document.documentElement);
     } else {
-      this.#iconDetector.reset();
+      this.#iconDetector.disconnect();
       this.#fontLoader.remove();
       this.#fontApplier.remove();
     }
@@ -389,7 +303,10 @@ class DirectionController {
     this.#directionApplier = directionApplier;
   }
 
-  async run() {
+  /**
+   * @param {boolean} isExcluded آیا آدرس جاری در excludedPaths است (بالاترین اولویت)
+   */
+  async run(isExcluded) {
     const settings = await this.#settingsRepository.getSettings();
     const hostname = window.location.hostname;
 
@@ -400,7 +317,9 @@ class DirectionController {
     );
 
     let shouldApply;
-    if (typeof perSiteOverride === "boolean") {
+    if (isExcluded) {
+      shouldApply = false;
+    } else if (typeof perSiteOverride === "boolean") {
       shouldApply = perSiteOverride;
     } else {
       shouldApply = strategy.isApplicable(hostname, document, settings);
@@ -421,6 +340,7 @@ class DirectionController {
     settingsRepository,
     new GoogleFontLoader(),
     new FontApplier(),
+    new IconFontDetector(),
   );
 
   const directionController = new DirectionController(
@@ -428,9 +348,26 @@ class DirectionController {
     new DirectionApplier(),
   );
 
-  const runAll = () => {
-    fontController.run();
-    directionController.run();
+  /**
+   * محاسبه‌ی وضعیت مستثنا بودن آدرس جاری صفحه بر اساس excludedPaths.
+   * این تابع در ابتدای هر runAll (و روی هر تغییر مسیر SPA) دوباره اجرا می‌شود
+   * چون hostname ثابت است ولی pathname می‌تواند در اپ‌های تک‌صفحه‌ای تغییر کند.
+   */
+  const computeIsExcluded = async () => {
+    const settings = await settingsRepository.getSettings();
+    const hostname = window.location.hostname;
+    const pathname = window.location.pathname;
+    return UrlPatternMatcher.isExcluded(
+      hostname,
+      pathname,
+      settings.excludedPaths,
+    );
+  };
+
+  const runAll = async () => {
+    const isExcluded = await computeIsExcluded();
+    await fontController.run(isExcluded);
+    await directionController.run(isExcluded);
   };
 
   const start = () => {
@@ -462,6 +399,8 @@ class DirectionController {
     start();
   }
 
+  // اپ‌های تک‌صفحه‌ای (SPA) مثل Google Maps بدون رفرش کامل صفحه، pathname را
+  // تغییر می‌دهند. با پایش دوره‌ای pathname، exclude/scope دوباره ارزیابی می‌شود.
   var lastPathname = window.location.pathname;
   setInterval(function () {
     if (window.location.pathname !== lastPathname) {
